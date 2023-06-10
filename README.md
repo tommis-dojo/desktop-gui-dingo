@@ -11,7 +11,7 @@ Following the instructions from tauris [getting started using html, css, and js]
 * we provide html, js and css
 * tauri provides the embedded browser that acts as a desktop gui application:
 
-Creating and calling the app to use the existing [ui/index.html](ui/index.html):
+Creating and calling the app to use the existing `ui/index.html`:
 
 ```
 make
