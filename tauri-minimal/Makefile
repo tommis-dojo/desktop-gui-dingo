@@ -16,7 +16,7 @@ run-build: $(APP_SOURCES) $(TAURI_CONFIG) # Create and run application in releas
 
 # Use this target to start app in dev mode - any changes to input files will lead to auto reload
 .PHONY: run-dev
-run-dev: $(TAURI_APP_EXISTS_FILE) # Create and run application in dev mode (external resource, auto reload)
+run-dev: $(APP_SOURCES) $(TAURI_CONFIG) # Create and run application in dev mode (external resource, auto reload)
 	cargo tauri dev
 
 # Create tauri framework using tauri cli
