@@ -1,6 +1,6 @@
 # Small example GUI programs using a number of technologies
 
-## Tauri (rust application wrapper to enbedded browser)
+## Tauri (rust application wrapper to embedded browser)
 
 See: [tauri.app](https://tauri.app/)
 
@@ -8,12 +8,22 @@ See: [tauri.app](https://tauri.app/)
 
 Following the instructions from tauris [getting started using html, css, and js](https://tauri.app/v1/guides/getting-started/setup/html-css-js/).
 
-* we provide html, js and css
-* tauri provides the embedded browser that acts as a desktop gui application:
+* we provide a simple webpage (html, js and css)
+* tauri provides the embedded browser (acting as a desktop gui application)
+* webpage is standalone, no calls outside to application
 
-Creating and calling the app to use the existing `ui/index.html`:
+Minimal functionality:
+
+* Have a input and display element
+* Changing the input element modifies the output element
+* logic is done entirely in javascript (as noted, no calls application)
+
+Creating and calling the app to use the existing assets in `ui`:
 
 ```
-make
+make help       # show make targets
+make run-dev    # for dev (reload page if any asset changes)
+make run-build  # for creating and running standalone binary
 ```
+
 
