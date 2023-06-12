@@ -7,9 +7,9 @@ help: # this help
 	@sed -n "/^[a-zA-Z\-]*:.*#.*/ s/^\([a-zA-Z\-]*\):.*#\(.*\$\)/  \1\:\t\2/p " Makefile
 
 # Run this target to create a standalone binary application that we can start
-.PHONY: run-build
-run-build: $(APP_SOURCES) $(TAURI_CONFIG) # Create and run application in release mode (standalone application)
-	grep tauri-minimal-id $(TAURI_CONFIG) || sed -i '' "s/com\.tauri\.dev/tauri-minimal/" $(TAURI_CONFIG)
+.PHONY: run-release
+run-release: $(APP_SOURCES) $(TAURI_CONFIG) # Create and run application in release mode (standalone application)
+	sed -i '' "s/com\.tauri\.dev/tauri-minimal/" $(TAURI_CONFIG)
 	# We will build the application, but not create any os specific bundle (deb, dmg, msi, ...).
 	cargo tauri build -b none
 	src-tauri/target/release/tauri-minimal

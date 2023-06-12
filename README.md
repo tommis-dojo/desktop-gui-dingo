@@ -4,7 +4,7 @@
 
 See: [tauri.app](https://tauri.app/)
 
-### [Minimal tauri app created using tauri cli](tauri-minimal/)
+### [Minimal tauri app created using tauri cli](tauri-basic-html-js/)
 
 Following the instructions from tauris [getting started using html, css, and js](https://tauri.app/v1/guides/getting-started/setup/html-css-js/).
 
@@ -26,4 +26,11 @@ make run-dev    # for dev (reload page if any asset changes)
 make run-build  # for creating and running standalone binary
 ```
 
+### [Tauri app calling function inside rust host](tauri-js-ipc-to-app/)
+
+This modifies the minimal example only slightly to call a function on the rust side, and receive its result.
+
+Same functionality as above.
+
+Usage as above.
 
