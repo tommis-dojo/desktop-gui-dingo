@@ -34,3 +34,9 @@ Same functionality as above.
 
 Usage as above.
 
+### [Tauri collection](tauri-collection/)
+
+Testbed for various tinkerings. Free for play!
+See explicite [README.md](tauri-collection/) of that bag of experiments.
+
+
