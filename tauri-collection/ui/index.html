@@ -8,11 +8,24 @@
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
-    <h1>Sei gegrüßt von Seitens Tauri!</h1>
+    <h1>Funktionsaufrufe</h1>
+
+    <h2>Einfacher Aufruf</h2>
     <div>
       <input id="greet-input" placeholder="Wie heißest du?" />
-      <button id="greet-button" type="button">Begrüße mich doch!</button>
+      <button id="greet-button" type="button">Begrüße mich doch (Javascript + Rust)!</button>
     </div>
-    <p id="greet-msg"></p>
+    <p id="greet-msg-js"></p>
+    <p id="greet-msg-rs"></p>
+
+    <h2>Long duration callback</h2>
+    <button id="long-callback-button" type="button">Loooong callback</button>
+
+    <div id="long-duration-callback">
+      <p>Blink!</p>
+    </div>
+  
+    <h2>Statusbar</h2>
+    <p id="statusbar">Statusbar</p>
   </body>
 </html>
