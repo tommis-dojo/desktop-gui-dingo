@@ -49,16 +49,17 @@ async function greet_rs() {
 
 /* Repetitive */
 
-function long_response() {
+async function long_response() {
   let el = document.querySelector("#long-duration-callback");
   if (el) {
-    status_message("adding selected");
 
     el.classList.add("selected");
-    window.setTimeout(function() {
-      status_message("removing selected");
+    await invoke("long_callback");
+    el.classList.remove("selected");
 
-      el.classList.remove("selected");
+
+    window.setTimeout(function() {
+
     }, 600);
   }
 }
