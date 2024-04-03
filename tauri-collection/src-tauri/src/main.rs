@@ -13,9 +13,26 @@ async fn long_callback() -> () {
     sleep(Duration::from_millis(600)).await;
 }
 
+#[tauri::command]
+async fn present_array() -> Vec<Vec<String>> {
+    let mut v: Vec<Vec<String>> = Vec::new();
+
+    for n in 1..10 {
+        let left = n.to_string();
+        let right = (-n).to_string();
+        let item = vec![left, right];
+        v.push(item);
+    }
+    v
+}
+
 fn main() {
     tauri::Builder::default()
-        .invoke_handler(tauri::generate_handler![greet, long_callback])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            long_callback,
+            present_array
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

@@ -25,6 +25,9 @@ function init_event_functions() {
   document
     .querySelector("#long-callback-button")
     .addEventListener("click", () => long_response());
+  document
+    .querySelector("#table-button")
+    .addEventListener("click", () => import_table_contents());
 }
 
 /* Status */
@@ -71,8 +74,10 @@ async function long_response() {
 /* Import-Table-Contents */
 
 async function import_table_contents() {
-  let items = [[1,2],[3,4],[5,6]];
+  let items = await invoke("present_array",{}); // [[1,2],[3,4],[5,6]];
+
   items.forEach(function(item) {
+
     let row = importTableContents.insertRow(-1);
     var cell1 = row.insertCell(0);
     var cell2 = row.insertCell(1);
@@ -88,5 +93,4 @@ async function import_table_contents() {
 window.addEventListener("DOMContentLoaded", () => {
   init_vars();
   init_event_functions();
-  import_table_contents();
 });
