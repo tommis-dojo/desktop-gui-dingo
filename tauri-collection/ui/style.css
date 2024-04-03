@@ -22,3 +22,17 @@
     visibility: visible;
     background-color: lightblue;
   }
+
+  th {
+    background-color: black;
+  }
+  th {
+    color: #cfcfcf;
+  }
+
+  tr:nth-child(even) {
+    background-color: darkgray;
+  }
+  tr:nth-child(odd) {
+    background-color: lightgray;
+  }

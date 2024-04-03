@@ -7,11 +7,15 @@ const { invoke } = window.__TAURI__.tauri
 let greetInput;
 let greetMsgJs;
 let greetMsgRs;
+let importTable;
+let importTableContents;
 
 function init_vars() {
   greetInput = document.querySelector("#greet-input");
   greetMsgJs = document.querySelector("#greet-msg-js");
   greetMsgRs = document.querySelector("#greet-msg-rs");
+  importTable = document.querySelector("#import-table");
+  importTableContents = document.querySelector("#import-table-contents table");
 }
 
 function init_event_functions() {
@@ -64,9 +68,25 @@ async function long_response() {
   }
 }
 
+/* Import-Table-Contents */
+
+async function import_table_contents() {
+  let items = [[1,2],[3,4],[5,6]];
+  items.forEach(function(item) {
+    let row = importTableContents.insertRow(-1);
+    var cell1 = row.insertCell(0);
+    var cell2 = row.insertCell(1);
+    
+    cell1.innerHTML = item[0];
+    cell2.innerHTML = item[1];
+  }
+  );
+}
+
 /* Mother */
 
 window.addEventListener("DOMContentLoaded", () => {
   init_vars();
   init_event_functions();
+  import_table_contents();
 });
