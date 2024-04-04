@@ -10,7 +10,7 @@ let greetMsgRs;
 let importTable;
 let importTableContents;
 
-function init_vars() {
+function initVariables() {
   greetInput = document.querySelector("#greet-input");
   greetMsgJs = document.querySelector("#greet-msg-js");
   greetMsgRs = document.querySelector("#greet-msg-rs");
@@ -18,21 +18,21 @@ function init_vars() {
   importTableContents = document.querySelector("#import-table-contents table");
 }
 
-function init_event_functions() {
+function initEventFunctions() {
   document
     .querySelector("#greet-button")
     .addEventListener("click", () => greet());
   document
     .querySelector("#long-callback-button")
-    .addEventListener("click", () => long_response());
+    .addEventListener("click", () => longResponse());
   document
     .querySelector("#table-button")
-    .addEventListener("click", () => replace_table_contents());
+    .addEventListener("click", () => replaceTableContents());
 }
 
 /* Status */
 
-function status_message(message) {
+function InformStatus(message) {
   let s = document.querySelector("#statusbar");
   s.textContent = message;
 }
@@ -40,23 +40,23 @@ function status_message(message) {
 /* Simple manipulation */
 
 function greet() {
-  setTimeout(function() {greet_rs(); }, 0);
-  setTimeout(function() {greet_js(); }, 0);
+  setTimeout(function() {greetRs(); }, 0);
+  setTimeout(function() {greetJs(); }, 0);
 }
 
-function greet_js() {
+function greetJs() {
   greetMsgJs.textContent =  "Sei gegrüßt, " + greetInput.value + "!";
 }
 
 /* IPC */
 
-async function greet_rs() {
+async function greetRs() {
   greetMsgRs.textContent = await invoke("greet", { name: greetInput.value });
 }
 
 /* Repetitive */
 
-async function long_response() {
+async function longResponse() {
   let el = document.querySelector("#long-duration-callback");
   if (el) {
 
@@ -73,13 +73,13 @@ async function long_response() {
 
 /* Import-Table-Contents */
 
-async function replace_table_contents() {
+async function replaceTableContents() {
   let num_rows = importTableContents.rows.length;
 
   if (num_rows > 0) {
-    status_message("Replace number of rows: " + (num_rows - 1));
+    InformStatus("Replace number of rows: " + (num_rows - 1));
   } else {
-    status_message("Insert table rows");
+    InformStatus("Insert table rows");
   }
   
   for (let i = 1; i < num_rows; i++) {
@@ -102,6 +102,6 @@ async function replace_table_contents() {
 /* Mother */
 
 window.addEventListener("DOMContentLoaded", () => {
-  init_vars();
-  init_event_functions();
+  initVariables();
+  initEventFunctions();
 });
