@@ -27,7 +27,7 @@ function init_event_functions() {
     .addEventListener("click", () => long_response());
   document
     .querySelector("#table-button")
-    .addEventListener("click", () => import_table_contents());
+    .addEventListener("click", () => replace_table_contents());
 }
 
 /* Status */
@@ -73,9 +73,20 @@ async function long_response() {
 
 /* Import-Table-Contents */
 
-async function import_table_contents() {
-  let items = await invoke("present_array",{}); // [[1,2],[3,4],[5,6]];
+async function replace_table_contents() {
+  let num_rows = importTableContents.rows.length;
 
+  if (num_rows > 0) {
+    status_message("Replace number of rows: " + (num_rows - 1));
+  } else {
+    status_message("Insert table rows");
+  }
+  
+  for (let i = 1; i < num_rows; i++) {
+    importTableContents.deleteRow(1);
+  }
+
+  let items = await invoke("present_array",{}); // [[1,2],[3,4],[5,6]];
   items.forEach(function(item) {
 
     let row = importTableContents.insertRow(-1);
