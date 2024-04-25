@@ -1,4 +1,4 @@
-# Tauri shared variable (state)
+# Tauri managed state (shared resources)
 
 Adapted from [tauri-collection](../tauri-collection/).
 

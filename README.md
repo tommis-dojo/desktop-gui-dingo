@@ -34,6 +34,12 @@ Same functionality as above.
 
 Usage as above.
 
+### [Tauri managed state (shared variable)](tauri-managed-state/)
+
+Accessing common resources used by multiple tauri rust commands by using managed state.
+Good also for use with channels (mspc etc). 
+See also explicite [README.md](tauri-managed-state/).
+
 ### [Tauri collection](tauri-collection/)
 
 Testbed for various tinkerings. Free for play!
