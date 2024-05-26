@@ -59,7 +59,7 @@ function replaceTableContents(items) {
 }
 
 async function dbRequest() {
-  invoke("db_query", { queryMain: "dbs"})
+  invoke("db_query", { queryMain: "GetDatabases"})
     .then((message) => {
       replaceTableContents(message)})
     .catch((error) => InformStatus("Error: " + error));

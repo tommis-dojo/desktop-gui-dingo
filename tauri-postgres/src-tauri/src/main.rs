@@ -3,6 +3,7 @@
 
 // See https://rfdonnelly.github.io/posts/tauri-async-rust-process/
 
+use serde::Deserialize;
 use tauri::State;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
@@ -12,7 +13,7 @@ use tokio_postgres;
 use tokio_util::sync::CancellationToken;
 use whoami;
 
-#[derive(Debug)]
+#[derive(Debug, Deserialize)]
 enum DatabaseQuery {
     GetDatabases = 1,
     GetTables = 2,
@@ -27,7 +28,7 @@ struct DbToTauri {
 
 #[tauri::command]
 async fn db_query(
-    query_main: String,
+    query_main: DatabaseQuery,
     // query_sub: String,
     to_db: State<'_, TauriToDb>,
     from_db: State<'_, DbToTauri>,
@@ -35,45 +36,37 @@ async fn db_query(
     println!("Called: db_query");
     {
         let sender = to_db.inner.lock().await;
-        let query_type: Result<DatabaseQuery, String> = match query_main.as_str() {
-            "dbs" => Ok(DatabaseQuery::GetDatabases),
-            "tables" => Ok(DatabaseQuery::GetTables),
-            _ => Err(String::from("Invalid query"))
-        };
 
-        query_type?;
-
-        match sender.send(DatabaseQuery::GetDatabases).await {
-            Ok(_) => {
-                println!("present_array: sent to -> to_db");
-            }
+        match sender.send(query_main).await {
+            Ok(_) => {}
             Err(_) => {
-                println!("present_array: error sending to -> to_db");
-                return Err(String::from("Error send db query"));
+                return Err(String::from("Error send db query to db task"));
             }
         }
     }
     {
         let mut receiver = from_db.inner.lock().await;
         if let Some(we) = receiver.recv().await {
-            println!("present_array: received {} rows", we.len());
-            let table = we
-                .into_iter()
-                .map(|s| vec![s])
-                .collect();
+            println!("db_query: received {} rows", we.len());
+            let table = we.into_iter().map(|s| vec![s]).collect();
             return Ok(table);
         } else {
-            Err(String::from("Error receive db query"))
+            Err(String::from(
+                "db_query: Error receiving response to db query",
+            ))
         }
     }
 }
 
-fn get_connection_string(database: Option<String> ) -> String {
+fn get_connection_string(database: Option<String>) -> String {
     match database {
-        Some(dbname) => format!("host=localhost user={} dbname={}", whoami::username(), dbname),
-        None => format!("host=localhost user={}", whoami::username())
+        Some(dbname) => format!(
+            "host=localhost user={} dbname={}",
+            whoami::username(),
+            dbname
+        ),
+        None => format!("host=localhost user={}", whoami::username()),
     }
-    
 }
 
 async fn query_databases() -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
@@ -104,21 +97,16 @@ async fn query_databases() -> Result<Vec<String>, Box<dyn std::error::Error + Se
 struct WhateverError {}
 
 async fn db_task(
-    mut channel_tauri_to_db_rx: mpsc::Receiver<DatabaseQuery>,
-    channel_db_to_tauri_tx: mpsc::Sender<Vec<String>>,
+    mut channel_to_db_rx: mpsc::Receiver<DatabaseQuery>,
+    channel_to_tauri_tx: mpsc::Sender<Vec<String>>,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    println!("Starting db task");
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-    println!("Finish db task");
-
-    println!("db task : waiting for message on receiver");
-    while let Some(message) = channel_tauri_to_db_rx.recv().await {
+    while let Some(message) = channel_to_db_rx.recv().await {
         println!("Received message: {:?}", message);
 
         match message {
             DatabaseQuery::GetDatabases => match query_databases().await {
                 Ok(database_names) => {
-                    if let Err(_) = channel_db_to_tauri_tx.send(database_names).await {
+                    if let Err(_) = channel_to_tauri_tx.send(database_names).await {
                         return Ok(());
                     }
                 }
@@ -132,24 +120,26 @@ async fn db_task(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
-    // query_databases().await?;
-
     // Channels for communication between db task and tauri task
-    let (channel_db_to_tauri_tx, channel_db_to_tauri_rx) = mpsc::channel::<Vec<String>>(1);
-    let (channel_tauri_to_db_tx, channel_tauri_to_db_rx) = mpsc::channel::<DatabaseQuery>(1);
 
-    tokio::spawn(db_task(channel_tauri_to_db_rx, channel_db_to_tauri_tx));
+    // To the outside, I just want a db task that accepts messages via channel.
+    // It will communicate back via channel.
 
-    println!("Spawned channel receiver");
+    // The frontend function call will send a message on a channel,
+    // and use the result.
+
+    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<Vec<String>>(1);
+    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<DatabaseQuery>(1);
+
+    tokio::spawn(db_task(channel_to_db_rx, channel_to_tauri_tx));
 
     tauri::async_runtime::set(tokio::runtime::Handle::current());
-
     let res = tauri::Builder::default()
         .manage(TauriToDb {
-            inner: Mutex::new(channel_tauri_to_db_tx),
+            inner: Mutex::new(channel_to_db_tx),
         })
         .manage(DbToTauri {
-            inner: Mutex::new(channel_db_to_tauri_rx),
+            inner: Mutex::new(channel_to_tauri_rx),
         })
         .invoke_handler(tauri::generate_handler![db_query])
         .run(tauri::generate_context!());
