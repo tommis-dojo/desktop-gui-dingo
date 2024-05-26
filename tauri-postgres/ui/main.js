@@ -4,18 +4,16 @@
 
 const { invoke } = window.__TAURI__.tauri
 
-let importTable;
-let importTableContents;
+let dbTable;
 
 function initVariables() {
-  importTable = document.querySelector("#modify-table");
-  importTableContents = document.querySelector("#import-table-contents table");
+  dbTable = document.querySelector("#db-table table");
 }
 
 function initEventFunctions() {
   document
-    .querySelector("#table-button")
-    .addEventListener("click", () => replaceTableContents());
+    .querySelector("#db-request")
+    .addEventListener("click", () => dbRequest());
 }
 
 /* Status */
@@ -27,41 +25,43 @@ function InformStatus(message) {
 
 /* Import-Table-Contents */
 
-function process_items(items) {
+function replaceTableContents(items) {
+  console.log("replaceTableContents(), num items = " + items.length);
+
   if (items) {
     // Clear old table contents
-    let num_rows = importTableContents.rows.length;
+    let num_rows = dbTable.rows.length;
 
-    if (num_rows > 0) {
-      InformStatus("Replace number of rows: " + (num_rows - 1));
-    } else {
-      InformStatus("Insert table rows");
+    for (let i = 0; i < num_rows; i++) {
+      dbTable.deleteRow(-1);
     }
-
-    for (let i = 1; i < num_rows; i++) {
-      importTableContents.deleteRow(1);
-    }
-
-    console.log("read items");
-    // InformStatus("Items: " + items.join(' | '));
-    InformStatus("Items (json): BEGIN " + JSON.stringify(items) + " END");
 
     // Insert new table contents
+    // Assume first line is header
+    var is_header = true;
     items.forEach(function(item) {
-      let row = importTableContents.insertRow(-1);
-      var cell1 = row.insertCell(0);
-      var cell2 = row.insertCell(1);
-      
-      cell1.innerHTML = item[0];
-      cell2.innerHTML = item[1];
+      let row = dbTable.insertRow();
+
+      item.forEach(function(cellData) {
+        if (is_header) {
+          // header
+          let th = row.appendChild(document.createElement("th"));
+          th.textContent = cellData;
+        } else {
+          // regular row
+          var cell = row.insertCell();
+          cell.innerHTML = cellData;
+        }
+      });
+      is_header = false;
     });
   }
 }
 
-async function replaceTableContents() {
-  invoke("present_array")
+async function dbRequest() {
+  invoke("db_query", { queryMain: "dbs"})
     .then((message) => {
-      process_items(message)})
+      replaceTableContents(message)})
     .catch((error) => InformStatus("Error: " + error));
 }
 

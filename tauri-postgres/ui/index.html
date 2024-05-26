@@ -8,20 +8,24 @@
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
-    <h1>Funktionsaufrufe</h1>
-    Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i   
+    <h1>Datenbank</h1>
+    <p>
+    Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i
+    </p>
 
-    <h3>Read table in one piece</h3>
-    <button id="table-button" type="button">Tabelle laden</button>
-    <div id="import-table-contents">
+    <!--
+    <div>Breadcrumbs</div>
+    -->
+    <button id="db-request" type="button">Datenbanken anzeigen</button>
+    <div id="db-table">
       <table>
-        <tr><th>Left</th><th>Right</th></tr>
         <!--
+        <tr><th>Column</th><th>Column</th></tr>
         <tr><td>row</td><td>row</td></tr>
         -->
       </table>
     </div>
-    
+
     <h2>Statusbar</h2>
     <p id="statusbar">Statusbar</p>
   </body>
