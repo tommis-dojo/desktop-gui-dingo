@@ -38,11 +38,16 @@ Usage as above.
 
 Accessing common resources used by multiple tauri rust commands by using managed state.
 Good also for use with channels (mspc etc). 
+
 See also explicite [README.md](tauri-managed-state/).
+
+### [Tauri postgres database](tauri-postgres)
+
+Read data from a postgres database which is running in a separate task.
+
+See also explicite [README.md](tauri-postgres/).
 
 ### [Tauri collection](tauri-collection/)
 
 Testbed for various tinkerings. Free for play!
 See explicite [README.md](tauri-collection/) of that bag of experiments.
-
-
