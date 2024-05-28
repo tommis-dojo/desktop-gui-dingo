@@ -15,8 +15,8 @@ use whoami;
 
 #[derive(Debug, Deserialize)]
 enum DatabaseQuery {
-    GetDatabases = 1,
-    GetTables = 2,
+    GetDatabases,
+    GetTables(String),
 }
 
 struct TauriToDb {
@@ -69,7 +69,10 @@ fn get_connection_string(database: Option<String>) -> String {
     }
 }
 
-async fn query_databases() -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+async fn run_query(
+    database: Option<String>,
+    query: String,
+) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
     let connection_str: String = get_connection_string(None);
     let (client, connection) =
         tokio_postgres::connect(&connection_str, tokio_postgres::NoTls).await?;
@@ -83,11 +86,10 @@ async fn query_databases() -> Result<Vec<String>, Box<dyn std::error::Error + Se
             _ = connection => {}
         }
     });
-    let q: &str = "SELECT datname FROM pg_database;"; // "SELECT $1::TEXT", &[&"hello world"]
-    let rows = client.query(q, &[]).await?;
+    let rows = client.query(&query, &[]).await?;
     token.cancel();
     db_connector_handle.await?;
-    println!("number of databases found: {}", rows.len());
+    println!("number of rows found: {}", rows.len());
 
     let vec: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
     Ok(vec)
@@ -103,16 +105,22 @@ async fn db_task(
     while let Some(message) = channel_to_db_rx.recv().await {
         println!("Received message: {:?}", message);
 
-        match message {
-            DatabaseQuery::GetDatabases => match query_databases().await {
-                Ok(database_names) => {
-                    if let Err(_) = channel_to_tauri_tx.send(database_names).await {
-                        return Ok(());
-                    }
+        let rows = match message {
+            DatabaseQuery::GetDatabases => {
+                run_query(None, String::from("SELECT datname FROM pg_database;")).await
+            }
+            DatabaseQuery::GetTables(_) => {
+                let err: Box<dyn std::error::Error + Send + Sync> = Box::from("your message here");
+                Err(err)
+            }
+        };
+        match rows {
+            Ok(rows) => {
+                if let Err(_) = channel_to_tauri_tx.send(rows).await {
+                    return Ok(());
                 }
-                Err(_) => {}
-            },
-            DatabaseQuery::GetTables => {}
+            }
+            Err(_) => {}
         }
     }
     Ok(())
