@@ -9,14 +9,26 @@
   </head>
   <body>
     <h1>Datenbank</h1>
+
     <p>
     Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i
     </p>
 
+    <h2>Anfrage</h2>
     <!--
     <div>Breadcrumbs</div>
     -->
-    <button id="db-request" type="button">Datenbanken anzeigen</button>
+    <div id="databasePath">
+      <table>
+      <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
+      <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
+      <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
+      </table>
+      <p>What do you want to query today?</p>
+      <button class="request" type="button">DB Anfrage schicken</button>
+    </div>
+
+    <h2>Inhalte</h2>
     <div id="db-table">
       <table>
         <!--

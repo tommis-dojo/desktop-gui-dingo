@@ -3,32 +3,74 @@
 
 // See https://rfdonnelly.github.io/posts/tauri-async-rust-process/
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use tauri::State;
 use tokio::sync::mpsc;
 use tokio::sync::Mutex;
 
+use gethostname;
 use tokio::select;
 use tokio_postgres;
 use tokio_util::sync::CancellationToken;
 use whoami;
 
-#[derive(Debug, Deserialize)]
+/*
+#[derive(Debug, Deserialize, Serialize)]
 enum DatabaseQuery {
     GetDatabases,
     GetTables(String),
 }
+*/
 
 struct TauriToDb {
-    inner: Mutex<mpsc::Sender<DatabaseQuery>>,
+    inner: Mutex<mpsc::Sender<DatabasePath>>,
 }
 struct DbToTauri {
-    inner: Mutex<mpsc::Receiver<Vec</*tokio_postgres::Row*/ String>>>,
+    inner: Mutex<mpsc::Receiver<Vec<Vec<String>>>>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct LocationInfo {
+    location_info: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+struct DatabasePath {
+    connection_string: Option<String>,
+    database: Option<String>,
+    table: Option<String>,
+}
+
+fn suggest_connection_str() -> Option<String> {
+    Some(format!("host=localhost user={}", whoami::username()))
+}
+
+/// Return a path and a name for the location to be used as "home"
+///
+#[tauri::command]
+async fn suggest_path() -> (LocationInfo, DatabasePath) {
+    let username = whoami::username();
+    let hostname = gethostname::gethostname();
+    let hostname = match hostname.to_str() {
+        Some(s) => s,
+        None => "<unknown host>",
+    };
+
+    (
+        LocationInfo {
+            location_info: format!("{}@{}", username, hostname),
+        },
+        DatabasePath {
+            connection_string: suggest_connection_str(),
+            database: None,
+            table: None,
+        },
+    )
 }
 
 #[tauri::command]
 async fn db_query(
-    query_main: DatabaseQuery,
+    query: DatabasePath, // DatabaseQuery,
     // query_sub: String,
     to_db: State<'_, TauriToDb>,
     from_db: State<'_, DbToTauri>,
@@ -37,7 +79,7 @@ async fn db_query(
     {
         let sender = to_db.inner.lock().await;
 
-        match sender.send(query_main).await {
+        match sender.send(query).await {
             Ok(_) => {}
             Err(_) => {
                 return Err(String::from("Error send db query to db task"));
@@ -46,9 +88,8 @@ async fn db_query(
     }
     {
         let mut receiver = from_db.inner.lock().await;
-        if let Some(we) = receiver.recv().await {
-            println!("db_query: received {} rows", we.len());
-            let table = we.into_iter().map(|s| vec![s]).collect();
+        if let Some(table) = receiver.recv().await {
+            println!("db_query: received {} rows", table.len());
             return Ok(table);
         } else {
             Err(String::from(
@@ -58,22 +99,56 @@ async fn db_query(
     }
 }
 
-fn get_connection_string(database: Option<String>) -> String {
-    match database {
-        Some(dbname) => format!(
-            "host=localhost user={} dbname={}",
-            whoami::username(),
-            dbname
-        ),
-        None => format!("host=localhost user={}", whoami::username()),
+fn get_connection_string(db_path: &DatabasePath) -> Option<String> {
+    match &db_path.connection_string {
+        None => None,
+        Some(connection_str) => {
+            let connection_orig = String::from(connection_str);
+            let connection_mod = match &db_path.database {
+                Some(dbname) => format!("{} dbname={}", connection_orig, dbname),
+                None => String::from(connection_orig),
+            };
+            Some(connection_mod)
+        }
     }
 }
 
+fn get_field_from_row(row: &tokio_postgres::Row, index: usize) -> &str {
+    let s: Result<&str, tokio_postgres::Error> = row.try_get(index);
+    match s {
+        Ok(s_) => s_,
+        Err(_) => "?",
+    }
+}
+
+fn debug_rows(rows: &Vec<tokio_postgres::Row>) {
+    println!("number of rows in result: {}", rows.len());
+
+    for row in rows.iter() {
+        print!("# {}: ", row.len());
+        for i in 0..row.len() {
+            print!(" {}", get_field_from_row(row, i));
+        }
+        println!("");
+    }
+}
+
+fn row_to_str(row: &tokio_postgres::Row) -> Vec<&str> {
+    (0..row.len())
+        .into_iter()
+        .map(|index| get_field_from_row(row, index))
+        .collect()
+}
+
+fn vec_str_to_strings(strings: Vec<&str>) -> Vec<String> {
+    strings.into_iter().map(|s| String::from(s)).collect()
+}
+
 async fn run_query(
-    database: Option<String>,
+    connection_str: String,
     query: String,
-) -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
-    let connection_str: String = get_connection_string(None);
+) -> Result<Vec<Vec<String>>, Box<dyn std::error::Error + Send + Sync>> {
+    println!("Connection-String: \"{}\"", connection_str);
     let (client, connection) =
         tokio_postgres::connect(&connection_str, tokio_postgres::NoTls).await?;
 
@@ -86,34 +161,91 @@ async fn run_query(
             _ = connection => {}
         }
     });
+    println!("Query: \"{}\"", query);
     let rows = client.query(&query, &[]).await?;
     token.cancel();
     db_connector_handle.await?;
-    println!("number of rows found: {}", rows.len());
 
-    let vec: Vec<String> = rows.iter().map(|row| row.get(0)).collect();
-    Ok(vec)
+    debug_rows(&rows);
+
+    let vecs: Vec<Vec<String>> = rows
+        .into_iter()
+        .map(|row| vec_str_to_strings(row_to_str(&row)))
+        .collect();
+    Ok(vecs)
 }
 
-#[derive(Debug)]
+use std::fmt;
+use std::usize;
+
 struct WhateverError {}
 
-async fn db_task(
-    mut channel_to_db_rx: mpsc::Receiver<DatabaseQuery>,
-    channel_to_tauri_tx: mpsc::Sender<Vec<String>>,
-) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    while let Some(message) = channel_to_db_rx.recv().await {
-        println!("Received message: {:?}", message);
+impl fmt::Debug for WhateverError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{{ file: {}, line: {} }}", file!(), line!()) // programmer-facing output
+    }
+}
 
-        let rows = match message {
-            DatabaseQuery::GetDatabases => {
-                run_query(None, String::from("SELECT datname FROM pg_database;")).await
+impl fmt::Display for WhateverError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "An Error Occurred, Please Try Again!") // user-facing output
+    }
+}
+
+impl std::error::Error for WhateverError {
+    fn description(&self) -> &str {
+        "WhateverError Platzhalter Beschreibung"
+    }
+}
+
+async fn db_task(
+    mut channel_to_db_rx: mpsc::Receiver<DatabasePath>,
+    channel_to_tauri_tx: mpsc::Sender<Vec<Vec<String>>>,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    while let Some(db_path) = channel_to_db_rx.recv().await {
+        println!("Received db_path: {:?}", db_path);
+
+        // We receive a path.
+        // Depending on that, we decide upon an action, for instance query
+        // available databases or tables belonging to a database.
+
+        // For now, we will trust the path given.
+
+        let err = WhateverError {};
+        let connection_str = get_connection_string(&db_path).ok_or(err)?;
+
+        // If no database is given, query databases
+        // If database is given, query tables in database
+        //
+        // Note at this point the desired database is already contained inside
+        // the connection_str.
+        let query = String::from(match db_path.database {
+            Some(_) => {
+                match db_path.table {
+                    Some(table) =>
+                    /* Query Table Contents */
+                    {
+                        format!("SELECT * FROM {};", table)
+                    }
+                    None =>
+                    /* Query Tables */
+                    {
+                        String::from(
+                            "SELECT table_name 
+                    FROM information_schema.tables
+                    WHERE table_schema = 'public';",
+                        )
+                    }
+                }
             }
-            DatabaseQuery::GetTables(_) => {
-                let err: Box<dyn std::error::Error + Send + Sync> = Box::from("your message here");
-                Err(err)
+            None =>
+            /* Query Databases */
+            {
+                String::from("SELECT datname FROM pg_database;")
             }
-        };
+        });
+
+        let rows = run_query(connection_str, query).await;
         match rows {
             Ok(rows) => {
                 if let Err(_) = channel_to_tauri_tx.send(rows).await {
@@ -136,8 +268,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
     // The frontend function call will send a message on a channel,
     // and use the result.
 
-    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<Vec<String>>(1);
-    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<DatabaseQuery>(1);
+    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<Vec<Vec<String>>>(1);
+    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<DatabasePath>(1);
 
     tokio::spawn(db_task(channel_to_db_rx, channel_to_tauri_tx));
 
@@ -149,7 +281,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
         .manage(DbToTauri {
             inner: Mutex::new(channel_to_tauri_rx),
         })
-        .invoke_handler(tauri::generate_handler![db_query])
+        .invoke_handler(tauri::generate_handler![db_query, suggest_path])
         .run(tauri::generate_context!());
 
     match res {

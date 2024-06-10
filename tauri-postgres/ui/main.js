@@ -12,11 +12,17 @@ function initVariables() {
 
 function initEventFunctions() {
   document
-    .querySelector("#db-request")
-    .addEventListener("click", () => dbRequest());
+    .querySelector("#databasePath button.request")
+    .addEventListener("click", () => dbRequestFromDbPath());
 }
 
 /* Status */
+
+function updateDatabasePath(path) {
+  document.querySelector("#databasePath .connection_string").value = path["connection_string"];
+  document.querySelector("#databasePath .database").value = path["database"];
+  document.querySelector("#databasePath .table").value = path["table"];
+}
 
 function InformStatus(message) {
   let s = document.querySelector("#statusbar");
@@ -25,10 +31,10 @@ function InformStatus(message) {
 
 /* Import-Table-Contents */
 
-function replaceTableContents(items) {
-  console.log("replaceTableContents(), num items = " + items.length);
+function replaceTableContents(rows) {
+  console.log("replaceTableContents(), num rows = " + rows.length);
 
-  if (items) {
+  if (rows) {
     // Clear old table contents
     let num_rows = dbTable.rows.length;
 
@@ -37,19 +43,19 @@ function replaceTableContents(items) {
     }
 
     // Insert new table contents
-    // Assume first line is header
-    var is_header = true;
-    items.forEach(function(item) {
-      let row = dbTable.insertRow();
+    // Assume no headers at first
+    var is_header = false;
+    rows.forEach(function(row) {
+      let tr = dbTable.insertRow();
 
-      item.forEach(function(cellData) {
+      row.forEach(function(cellData) {
         if (is_header) {
           // header
-          let th = row.appendChild(document.createElement("th"));
+          let th = tr.appendChild(document.createElement("th"));
           th.textContent = cellData;
         } else {
           // regular row
-          var cell = row.insertCell();
+          var cell = tr.insertCell();
           cell.innerHTML = cellData;
         }
       });
@@ -58,16 +64,49 @@ function replaceTableContents(items) {
   }
 }
 
-async function dbRequest() {
-  invoke("db_query", { queryMain: "GetDatabases"})
+async function dbRequest(params) {
+  // Hint: just replace query
+  invoke("db_query",params)
     .then((message) => {
-      replaceTableContents(message)})
+      replaceTableContents(message);
+    })
     .catch((error) => InformStatus("Error: " + error));
+}
+
+function valueFromPath(selectors) {
+  console.log("valueFromPath(" + selectors + ")")
+  let element = document.querySelector(selectors);
+  if (!element) {
+    return null;
+  }
+  
+  let value = element.value;
+  if (value == "") {
+    return null;
+  }
+
+  return value;
+}
+
+async function dbRequestFromDbPath() {
+  let params = {};
+  params["connection_string"] = valueFromPath("#databasePath .connection_string");
+  params["database"] = valueFromPath("#databasePath .database");
+  params["table"] = valueFromPath("#databasePath .table");
+  await dbRequest({ query: params});
 }
 
 /* Mother */
 
+async function initialBreadcrumbs() {
+  let r = await invoke("suggest_path", {});
+  let datapasePath = r[1];
+  InformStatus(JSON.stringify(datapasePath));
+  updateDatabasePath(datapasePath);
+}
+
 window.addEventListener("DOMContentLoaded", () => {
   initVariables();
   initEventFunctions();
+  initialBreadcrumbs();
 });
