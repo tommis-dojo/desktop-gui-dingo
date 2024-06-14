@@ -26,6 +26,7 @@
   th {
     background-color: black;
   }
+
   th {
     color: #cfcfcf;
   }
@@ -35,4 +36,39 @@
   }
   tr:nth-child(odd) {
     background-color: lightgray;
+  }
+
+  /* Breadcrumbs */
+
+  ul.breadcrumb {
+    /* Pixel? Dumme Idee, oder? Was statt dessen? */
+    padding: 10px 16px;
+    list-style: none;
+  }
+  
+  ul.breadcrumb li {
+    display: inline;
+    padding: 3px 3px;
+    margin: 0;
+    text-decoration: none;
+  }
+
+  ul.breadcrumb li.breadcrumb_separator {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: 3px;
+    margin-right: 3px;
+  }
+
+  ul.breadcrumb li.link {
+    color: #0275d8;
+    background-color: #eee;
+    padding-left: 0.5em;
+    padding-right: 0.5em;
+  }
+
+  ul.breadcrumb li.link:hover {
+    cursor:pointer;
+    color: #01447e;
+    background-color: aqua;
   }
