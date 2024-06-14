@@ -14,14 +14,26 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  #long-duration-callback p {
-    visibility: hidden;
+  /* Table */
+
+  td {
+    border: 1px solid black;
+    border-right-width:0;
+    border-bottom-width: 0;
+    padding: 5px;
+    margin: 0;  
   }
 
-  #long-duration-callback.selected p {
-    visibility: visible;
-    background-color: lightblue;
+  td:nth-last-child(1) {
+    border-right-width: 1px;
+    /*color: red;*/ /* markiert */
   }
+  tr:nth-last-child(1) td {
+    border-bottom-width: 1px;
+    /*background-color: lightyellow;*/ /* markiert */
+  }
+  
+
 
   th {
     background-color: black;
