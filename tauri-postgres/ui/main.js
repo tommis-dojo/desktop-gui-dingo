@@ -161,15 +161,17 @@ async function dbRequestFromDbPath() {
 
 /* Mother */
 
-async function initialBreadcrumbs() {
+async function initialPosition(){
   let r = await invoke("suggest_path", {});
   let dbPath = r[1];
+  await dbRequest(dbPath);
   updateDatabasePath(dbPath);
-  updateBreadcrumbs(dbPath);
+  return dbPath;
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   initVariables();
   initEventFunctions();
-  initialBreadcrumbs();
+  let suggestedQuery = initialPosition();
+  initialQuery(suggestedQuery);
 });
