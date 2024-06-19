@@ -12,10 +12,31 @@ function initVariables() {
   breadcrumbs = document.querySelector("#breadcrumbs");
 }
 
+function onEnterDbRequest(event) {
+  if (event.keyCode === 13) {
+    // Prevent the default action
+    event.preventDefault();
+    
+    dbRequestFromDbPath();
+  }
+}
+
 function initEventFunctions() {
   document
     .querySelector("#databasePath button.request")
     .addEventListener("click", () => dbRequestFromDbPath());
+  
+  document
+    .querySelector("#databasePath .connection_string")
+    .addEventListener('keydown', onEnterDbRequest);
+
+  document
+    .querySelector("#databasePath .database")
+    .addEventListener('keydown', onEnterDbRequest);
+
+  document
+    .querySelector("#databasePath .table")
+    .addEventListener('keydown', onEnterDbRequest);
 }
 
 /* Status */

@@ -14,6 +14,12 @@
     -webkit-text-size-adjust: 100%;
   }
 
+  /* Custom Query */
+
+  #custom-query {
+    display: block;
+  }
+
   /* Table */
 
   td {
