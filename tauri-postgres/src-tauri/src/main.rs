@@ -19,15 +19,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
     // The frontend function call will send a message on a channel,
     // and use the result.
 
-    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<db::StringTable>(1);
-    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<db::DatabasePath>(1);
+    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<db::types::StringTable>(1);
+    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<db::types::DatabasePath>(1);
 
     tokio::spawn(db::db_task(channel_to_db_rx, channel_to_tauri_tx));
 
     tauri::async_runtime::set(tokio::runtime::Handle::current());
     let res = tauri::Builder::default()
-        .manage(db::StateHalfpipeToDb::from(channel_to_db_tx))
-        .manage(db::StateHalfpipeToTauri::from(channel_to_tauri_rx))
+        .manage(db::types::StateHalfpipeToDb::from(channel_to_db_tx))
+        .manage(db::types::StateHalfpipeToTauri::from(channel_to_tauri_rx))
         .invoke_handler(tauri::generate_handler![
             db::commands::db_query,
             db::commands::suggest_path
