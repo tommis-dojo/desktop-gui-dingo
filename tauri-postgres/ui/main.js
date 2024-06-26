@@ -65,6 +65,51 @@ function addTextLiTo(parent, className, textContent, linkFunction) {
   parent.appendChild(li);  
 }
 
+
+function createDbQuery(connection_string, database, table) {
+
+  /*
+    Possible values for "query":
+
+    "query": "GetDatabases"
+    "query": {"GetTables":"mydatabase"}
+    "query": {"GetTableContents":{
+        "database": "mydatabase"
+        "table": "mytable"
+      }}
+  */
+
+  let query;
+
+  if (table !== null) {
+    query = {
+      "GetTableContents":{
+        "database": database,
+        "table": table
+      }
+    }
+  } else if (database !== null) {
+    query = {"GetTables": database}
+  } else {
+    query = "GetDatabases";
+  }
+
+  return {
+    "connection": {
+      "Stateless":connection_string
+    },
+    "query": query
+  }
+}
+
+function createDbQueryFromPath(path) {
+  return createDbQuery(
+    path["connection_string"],
+    path["database"],
+    path["table"])
+}
+
+
 // Add an element to the breadcrumbs including link
 function addBreadcrumbIfGiven(path, altLinkText, pathElements) {
   let subPath = db_path_shell();
@@ -81,10 +126,11 @@ function addBreadcrumbIfGiven(path, altLinkText, pathElements) {
     if (altLinkText !== null) {
       linkText = altLinkText;
     } else {
-      linkText = lastPathElement
+      linkText = lastPathElement;
     }
 
-    addTextLiTo(breadcrumbs, "link", linkText, () => dbRequest(subPath));
+    let statelessQuery = createDbQueryFromPath(subPath);
+    addTextLiTo(breadcrumbs, "link", linkText, () => dbRequest(statelessQuery));
   }
 }
 
@@ -97,10 +143,43 @@ function updateBreadcrumbs(path) {
   addBreadcrumbIfGiven(path, null, ["connection_string","database","table"]);
 }
 
-function updateDatabasePath(path) {
-  document.querySelector("#databasePath .connection_string").value = path["connection_string"];
-  document.querySelector("#databasePath .database").value = path["database"];
-  document.querySelector("#databasePath .table").value = path["table"];
+function get_task(stateless_query) {
+  let q = stateless_query["query"];
+  return Object.keys(q)[0];
+}
+
+function toBreadcrumbItems(stateless_query) {
+  let q = stateless_query["query"];
+  let database = null;
+  let table = null;
+
+  let task = get_task(stateless_query);  // "GetDatabases", "GetTables", "GetTableContents"
+  let task_info = q[task];
+  switch (task) {
+    case "GetDatabases":
+      break;
+    case "GetTables":
+      database = task_info;
+      break;
+    case "GetTableContents":
+      database = task_info["database"];
+      table = task_info["table"];
+      break;
+    default:
+  }
+  return {
+    "connection_string": stateless_query["connection"]["Stateless"],
+    "database": database,
+    "table": table
+  }
+}
+
+function updateDatabasepath(query) {
+  let breadcrumb_items = toBreadcrumbItems(query);
+
+  document.querySelector("#databasePath .connection_string").value = breadcrumb_items["connection_string"];
+  document.querySelector("#databasePath .database").value = breadcrumb_items["database"];
+  document.querySelector("#databasePath .table").value = breadcrumb_items["table"];
 }
 
 function InformStatus(message) {
@@ -143,12 +222,13 @@ function replaceTableContents(rows) {
   }
 }
 
-async function dbRequest(dbPath) {
-  InformStatus("Note dbRequest: " + JSON.stringify(dbPath))
-  invoke("db_query",{ query: dbPath})
+async function dbRequest(dbQuery) {
+  InformStatus("Note dbRequest: " + JSON.stringify(dbQuery))
+  invoke("db_query",{ query: dbQuery})
     .then((message) => {
       replaceTableContents(message);
-      updateBreadcrumbs(dbPath);  // just copy the query verbatim as current path
+      let path = toBreadcrumbItems(dbQuery);
+      updateBreadcrumbs(path);  // just copy the query verbatim as current path
     })
     .catch((error) => InformStatus("Error: " + error));
 }
@@ -176,23 +256,22 @@ async function dbRequestFromDbPath() {
   dbPath["connection_string"] = valueFromPath("#databasePath .connection_string");
   dbPath["database"] = valueFromPath("#databasePath .database");
   dbPath["table"] = valueFromPath("#databasePath .table");
-  await dbRequest(dbPath);
+
+  let query = createDbQueryFromPath(dbPath);
+  await dbRequest(query);
 }
 
 
 /* Mother */
 
-async function initialPosition(){
-  let r = await invoke("suggest_path", {});
-  let dbPath = r[1];
-  await dbRequest(dbPath);
-  updateDatabasePath(dbPath);
-  return dbPath;
+async function initialQuery(){
+  let query = await invoke("suggest_query", {});
+  await dbRequest(query);
+  updateDatabasepath(query);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
   initVariables();
   initEventFunctions();
-  let suggestedQuery = initialPosition();
-  initialQuery(suggestedQuery);
+  initialQuery();
 });

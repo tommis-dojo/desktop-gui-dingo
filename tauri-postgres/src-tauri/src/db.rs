@@ -8,10 +8,9 @@
 /// Common things separate.
 use std::fmt;
 
+use tauri::State;
 use tokio::select;
 use tokio_util::sync::CancellationToken;
-
-use tauri::State;
 
 /// Several things:
 ///
@@ -25,39 +24,97 @@ use tauri::State;
 /// Both are ignored for now
 ///
 
+/** Thoughts on being stateful:
+ *
+ * keep selected things in mind (connection, database, table) - not rest
+ *
+ * Regarding position in breadcrumbs
+ *
+ * 1. specify desired position -> communicate that to backend
+ * 2. afterwards, from position decide next default action  -> run query
+ *
+ * Example structure:
+ *
+ *       pub enum StatefulQuery {
+ *           Connect(String),
+ *           GetDatabases,
+ *           SelectDatabase(String),
+ *           GetTables,
+ *           SetTable(String),
+ *           GetTableContents,
+ *       }
+ *
+ * pub enum DatabaseQuery {
+ *          ConsecutiveQuery(StatefulQuery),
+ *          OneShot(DatabasePath)
+ * }
+ *
+ */
+
 pub mod types {
     use serde::{Deserialize, Serialize};
     use tokio::sync::mpsc;
     use tokio::sync::Mutex;
 
-    /*
+    pub type SomeDatabase = String;
+    pub type SomeTable = String;
+
     #[derive(Debug, Deserialize, Serialize)]
-    enum DatabaseQuery {
+    pub enum Connection {
+        Stateless(String),
+    }
+
+    #[derive(Debug, Deserialize, Serialize, Clone)]
+    pub struct DatabaseTable {
+        pub database: Option<SomeDatabase>,
+        pub table: SomeTable,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum Query {
         GetDatabases,
-        GetTables(String),
-    }
-    */
-
-    #[derive(Debug, Deserialize, Serialize)]
-    pub struct LocationInfo {
-        pub location_info: String,
+        GetTables(Option<SomeDatabase>),
+        GetTableContents(DatabaseTable),
     }
 
+    impl Query {
+        pub fn get_mentioned_database(&self) -> Option<SomeDatabase> {
+            match self {
+                Self::GetDatabases => None,
+                Self::GetTables(opt_db) => opt_db.clone(),
+                Self::GetTableContents(db_table) => db_table.database.clone(),
+            }
+        }
+
+        pub fn get_query_string(&self) -> String {
+            match self {
+                Self::GetDatabases => String::from("SELECT datname FROM pg_database;"),
+                Self::GetTables(_) => String::from(
+                    "SELECT table_name 
+            FROM information_schema.tables
+            WHERE table_schema = 'public';",
+                ),
+                Self::GetTableContents(db_and_table) => {
+                    format!("SELECT * FROM {};", &db_and_table.table)
+                }
+            }
+        }
+    }
+
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct DatabasePath {
-        pub connection_string: Option<String>,
-        pub database: Option<String>,
-        pub table: Option<String>,
+    pub struct StatelessQuery {
+        pub connection: Connection,
+        pub query: Query,
     }
 
     pub type StringTable = Vec<Vec<String>>;
 
     pub struct StateHalfpipeToDb {
-        pub inner: Mutex<mpsc::Sender<DatabasePath>>,
+        pub inner: Mutex<mpsc::Sender<StatelessQuery>>,
     }
 
     impl StateHalfpipeToDb {
-        pub fn from(sender_to_db: mpsc::Sender<DatabasePath>) -> StateHalfpipeToDb {
+        pub fn from(sender_to_db: mpsc::Sender<StatelessQuery>) -> StateHalfpipeToDb {
             StateHalfpipeToDb {
                 inner: Mutex::new(sender_to_db),
             }
@@ -76,44 +133,39 @@ pub mod types {
         }
     }
 
-    pub type PathReceiver = mpsc::Receiver<DatabasePath>;
+    pub type DatabaseQueryReceiver = mpsc::Receiver<StatelessQuery>;
     pub type StringTableSender = mpsc::Sender<StringTable>;
 }
 
-fn suggest_connection_str() -> Option<String> {
-    Some(format!("host=localhost user={}", whoami::username()))
+fn suggest_connection_str() -> String {
+    format!("host=localhost user={}", whoami::username())
 }
 
 pub mod commands {
+
     use super::*;
 
     /// Return a path and a name for the location to be used as "home"
     ///
     #[tauri::command]
-    pub async fn suggest_path() -> (types::LocationInfo, types::DatabasePath) {
-        let username = whoami::username();
-        let hostname = gethostname::gethostname();
-        let hostname = match hostname.to_str() {
-            Some(s) => s,
-            None => "<unknown host>",
-        };
-
-        (
-            types::LocationInfo {
-                location_info: format!("{}@{}", username, hostname),
-            },
-            types::DatabasePath {
-                connection_string: suggest_connection_str(),
-                database: None,
-                table: None,
-            },
-        )
+    pub async fn suggest_query() -> types::StatelessQuery {
+        types::StatelessQuery {
+            connection: types::Connection::Stateless(suggest_connection_str()),
+            query: types::Query::GetDatabases, // Available:
+                                               //
+                                               // types::Query::GetDatabases
+                                               // types::Query::GetTables(
+                                               //     Some(String::from("myuser")))
+                                               // types::Query::GetTableContents(
+                                               //     types::DatabaseTable{
+                                               //         database: Some(String::from("myuser")),
+                                               //         table: String::from("sometable")})
+        }
     }
 
     #[tauri::command]
     pub async fn db_query(
-        query: types::DatabasePath, // DatabaseQuery,
-        // query_sub: String,
+        query: types::StatelessQuery,
         to_db: State<'_, types::StateHalfpipeToDb>,
         from_db: State<'_, types::StateHalfpipeToTauri>,
     ) -> Result<Vec<Vec<String>>, String> {
@@ -142,17 +194,10 @@ pub mod commands {
     }
 }
 
-fn get_connection_string(db_path: &types::DatabasePath) -> Option<String> {
-    match &db_path.connection_string {
-        None => None,
-        Some(connection_str) => {
-            let connection_orig = String::from(connection_str);
-            let connection_mod = match &db_path.database {
-                Some(dbname) => format!("{} dbname={}", connection_orig, dbname),
-                None => String::from(connection_orig),
-            };
-            Some(connection_mod)
-        }
+fn get_resulting_connection_string(connection_string: &str, database: &Option<String>) -> String {
+    match database {
+        Some(dbname) => format!("{} dbname={}", connection_string, dbname),
+        None => String::from(connection_string),
     }
 }
 
@@ -250,53 +295,20 @@ impl std::error::Error for WhateverError {
 /// Standalone task that handles database requests and returns responses
 ///
 pub async fn db_task(
-    mut channel_to_db_rx: types::PathReceiver,
+    mut channel_to_db_rx: types::DatabaseQueryReceiver,
     channel_to_tauri_tx: types::StringTableSender,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
-    while let Some(db_path) = channel_to_db_rx.recv().await {
-        println!("Received db_path: {:?}", db_path);
+    while let Some(db_query) = channel_to_db_rx.recv().await {
+        println!("Received db query: {:?}", db_query);
 
-        // We receive a path.
-        // Depending on that, we decide upon an action, for instance query
-        // available databases or tables belonging to a database.
+        let connection_raw = match &db_query.connection {
+            types::Connection::Stateless(s) => s.as_str(),
+        };
+        let database: Option<String> = db_query.query.get_mentioned_database();
+        let connection_str = get_resulting_connection_string(connection_raw, &database);
+        let query_string = db_query.query.get_query_string();
 
-        // For now, we will trust the path given.
-
-        let err = WhateverError {};
-        let connection_str = get_connection_string(&db_path).ok_or(err)?;
-
-        // If no database is given, query databases
-        // If database is given, query tables in database
-        //
-        // Note at this point the desired database is already contained inside
-        // the connection_str.
-        let query = String::from(match db_path.database {
-            Some(_) => {
-                match db_path.table {
-                    Some(table) =>
-                    /* Query Table Contents */
-                    {
-                        format!("SELECT * FROM {};", table)
-                    }
-                    None =>
-                    /* Query Tables */
-                    {
-                        String::from(
-                            "SELECT table_name 
-                    FROM information_schema.tables
-                    WHERE table_schema = 'public';",
-                        )
-                    }
-                }
-            }
-            None =>
-            /* Query Databases */
-            {
-                String::from("SELECT datname FROM pg_database;")
-            }
-        });
-
-        let rows = run_query(connection_str, query).await;
+        let rows = run_query(connection_str, query_string).await;
         match rows {
             Ok(rows) => {
                 if let Err(_) = channel_to_tauri_tx.send(rows).await {
