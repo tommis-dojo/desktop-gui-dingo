@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
     // The frontend function call will send a message on a channel,
     // and use the result.
 
-    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<db::types::StringTable>(1);
+    let (channel_to_tauri_tx, channel_to_tauri_rx) = mpsc::channel::<db::types::TypedTable>(1);
     let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<db::types::StatelessQuery>(1);
 
     tokio::spawn(db::db_task(channel_to_db_rx, channel_to_tauri_tx));

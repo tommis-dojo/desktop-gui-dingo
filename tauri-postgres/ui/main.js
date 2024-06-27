@@ -207,14 +207,15 @@ function replaceTableContents(rows) {
       let tr = dbTable.insertRow();
 
       row.forEach(function(cellData) {
+        let cellText = cellData["Text"];
         if (is_header) {
           // header
           let th = tr.appendChild(document.createElement("th"));
-          th.textContent = cellData;
+          th.textContent = cellText;
         } else {
           // regular row
           var cell = tr.insertCell();
-          cell.innerHTML = cellData;
+          cell.innerHTML = cellText;
         }
       });
       is_header = false;
@@ -226,6 +227,7 @@ async function dbRequest(dbQuery) {
   InformStatus("Note dbRequest: " + JSON.stringify(dbQuery))
   invoke("db_query",{ query: dbQuery})
     .then((message) => {
+      // InformStatus("Note message: " + JSON.stringify(message))
       replaceTableContents(message);
       let path = toBreadcrumbItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path

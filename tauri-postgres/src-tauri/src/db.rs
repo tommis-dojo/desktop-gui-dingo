@@ -12,6 +12,7 @@ use tauri::State;
 use tokio::select;
 use tokio_postgres::types::Type;
 use tokio_util::sync::CancellationToken;
+use types::{TypedField, TypedTable};
 
 /// Several things:
 ///
@@ -108,7 +109,13 @@ pub mod types {
         pub query: Query,
     }
 
-    pub type StringTable = Vec<Vec<String>>;
+    #[derive(Debug, Deserialize, Serialize)]
+    pub enum TypedField {
+        Text(String),
+        Database(String),
+        Table(String),
+    }
+    pub type TypedTable = Vec<Vec<TypedField>>;
 
     pub struct StateHalfpipeToDb {
         pub inner: Mutex<mpsc::Sender<StatelessQuery>>,
@@ -123,11 +130,11 @@ pub mod types {
     }
 
     pub struct StateHalfpipeToTauri {
-        pub inner: Mutex<mpsc::Receiver<StringTable>>,
+        pub inner: Mutex<mpsc::Receiver<TypedTable>>,
     }
 
     impl StateHalfpipeToTauri {
-        pub fn from(receiver_from_db: mpsc::Receiver<StringTable>) -> StateHalfpipeToTauri {
+        pub fn from(receiver_from_db: mpsc::Receiver<TypedTable>) -> StateHalfpipeToTauri {
             StateHalfpipeToTauri {
                 inner: Mutex::new(receiver_from_db),
             }
@@ -135,7 +142,7 @@ pub mod types {
     }
 
     pub type DatabaseQueryReceiver = mpsc::Receiver<StatelessQuery>;
-    pub type StringTableSender = mpsc::Sender<StringTable>;
+    pub type StringTableSender = mpsc::Sender<TypedTable>;
 }
 
 fn suggest_connection_str() -> String {
@@ -143,6 +150,8 @@ fn suggest_connection_str() -> String {
 }
 
 pub mod commands {
+
+    use types::TypedTable;
 
     use super::*;
 
@@ -169,7 +178,7 @@ pub mod commands {
         query: types::StatelessQuery,
         to_db: State<'_, types::StateHalfpipeToDb>,
         from_db: State<'_, types::StateHalfpipeToTauri>,
-    ) -> Result<Vec<Vec<String>>, String> {
+    ) -> Result<TypedTable, String> {
         println!("Called: db_query");
         {
             let sender = to_db.inner.lock().await;
@@ -263,11 +272,16 @@ fn debug_rows(rows: &Vec<tokio_postgres::Row>) {
 }
 
 /// Convert row to vector of str
-fn row_to_str(row: &tokio_postgres::Row) -> Vec<String> {
+fn row_to_strings(row: &tokio_postgres::Row) -> Vec<String> {
     (0..row.len())
         .into_iter()
         .map(|index| get_field_from_row(row, index))
         .collect()
+}
+
+fn row_to_typed_text(row: &tokio_postgres::Row) -> Vec<TypedField> {
+    let strings = row_to_strings(row);
+    strings.into_iter().map(|s| TypedField::Text(s)).collect()
 }
 
 /// Connect to database and run single query
@@ -275,7 +289,7 @@ fn row_to_str(row: &tokio_postgres::Row) -> Vec<String> {
 async fn run_query(
     connection_str: String,
     query: String,
-) -> Result<types::StringTable, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<types::TypedTable, Box<dyn std::error::Error + Send + Sync>> {
     println!("Connection-String: \"{}\"", connection_str);
     let (client, connection) =
         tokio_postgres::connect(&connection_str, tokio_postgres::NoTls).await?;
@@ -296,8 +310,11 @@ async fn run_query(
 
     debug_rows(&rows);
 
-    let vecs: Vec<Vec<String>> = rows.into_iter().map(|row| row_to_str(&row)).collect();
-    Ok(vecs)
+    let content: TypedTable = rows
+        .into_iter()
+        .map(|row| row_to_typed_text(&row))
+        .collect();
+    Ok(content)
 }
 
 struct WhateverError {}
@@ -336,8 +353,8 @@ pub async fn db_task(
         let connection_str = get_resulting_connection_string(connection_raw, &database);
         let query_string = db_query.query.get_query_string();
 
-        let rows = run_query(connection_str, query_string).await;
-        match rows {
+        let table_data = run_query(connection_str, query_string).await;
+        match table_data {
             Ok(rows) => {
                 if let Err(_) = channel_to_tauri_tx.send(rows).await {
                     return Ok(());
