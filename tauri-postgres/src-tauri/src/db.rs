@@ -10,6 +10,7 @@ use std::fmt;
 
 use tauri::State;
 use tokio::select;
+use tokio_postgres::types::Type;
 use tokio_util::sync::CancellationToken;
 
 /// Several things:
@@ -201,12 +202,50 @@ fn get_resulting_connection_string(connection_string: &str, database: &Option<St
     }
 }
 
+fn try_get_field_as_string(row: &tokio_postgres::Row, index: usize) -> Result<String, ()> {
+    let field_type: &Type = row.columns()[index].type_();
+    match field_type {
+        &Type::BOOL => match row.try_get::<usize, bool>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::INT2 => match row.try_get::<usize, i16>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::INT4 => match row.try_get::<usize, i32>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::INT8 => match row.try_get::<usize, i64>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::FLOAT4 => match row.try_get::<usize, f32>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::FLOAT8 => match row.try_get::<usize, f64>(index) {
+            Ok(val) => Ok(format!("{}", val)),
+            Err(_) => Err(()),
+        },
+        &Type::VARCHAR | &Type::NAME => match row.try_get::<usize, String>(index) {
+            Ok(val) => Ok(val),
+            Err(_) => Err(()),
+        },
+        some_type => {
+            print!("Could not convert column of type: {:?}", some_type);
+            Err(())
+        }
+    }
+}
+
 /// Extract string from given column of row
-fn get_field_from_row(row: &tokio_postgres::Row, index: usize) -> &str {
-    let s: Result<&str, tokio_postgres::Error> = row.try_get(index);
-    match s {
-        Ok(s_) => s_,
-        Err(_) => "?",
+fn get_field_from_row(row: &tokio_postgres::Row, index: usize) -> String {
+    let res = try_get_field_as_string(row, index);
+    match res {
+        Ok(s) => s,
+        Err(_) => String::from("?"),
     }
 }
 
@@ -224,19 +263,11 @@ fn debug_rows(rows: &Vec<tokio_postgres::Row>) {
 }
 
 /// Convert row to vector of str
-fn row_to_str(row: &tokio_postgres::Row) -> Vec<&str> {
+fn row_to_str(row: &tokio_postgres::Row) -> Vec<String> {
     (0..row.len())
         .into_iter()
         .map(|index| get_field_from_row(row, index))
         .collect()
-}
-
-/// Shorthand to convert vector of str slices to strings
-///
-/// Surely there is a more idiomatic way to do this?
-///
-fn vec_str_to_strings(strings: Vec<&str>) -> Vec<String> {
-    strings.into_iter().map(|s| String::from(s)).collect()
 }
 
 /// Connect to database and run single query
@@ -265,10 +296,7 @@ async fn run_query(
 
     debug_rows(&rows);
 
-    let vecs: Vec<Vec<String>> = rows
-        .into_iter()
-        .map(|row| vec_str_to_strings(row_to_str(&row)))
-        .collect();
+    let vecs: Vec<Vec<String>> = rows.into_iter().map(|row| row_to_str(&row)).collect();
     Ok(vecs)
 }
 
