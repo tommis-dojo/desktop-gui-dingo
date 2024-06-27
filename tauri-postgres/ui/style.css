@@ -17,7 +17,20 @@
   /* Custom Query */
 
   #custom-query {
-    display: block;
+    display: none;
+  }
+
+  /* General */
+
+  .link {
+    color: #0275d8;
+    background-color: #eee;
+  }
+
+  .link:hover {
+    cursor:pointer;
+    color: #01447e;
+    background-color: aqua;
   }
 
   /* Table */
@@ -39,8 +52,6 @@
     /*background-color: lightyellow;*/ /* markiert */
   }
   
-
-
   th {
     background-color: black;
   }
@@ -54,6 +65,14 @@
   }
   tr:nth-child(odd) {
     background-color: lightgray;
+  }
+
+  td .Text {
+    background-color: white;
+  }
+
+  td .Text {
+    background-color: white;
   }
 
   /* Breadcrumbs */
@@ -79,14 +98,10 @@
   }
 
   ul.breadcrumb li.link {
-    color: #0275d8;
-    background-color: #eee;
     padding-left: 0.5em;
     padding-right: 0.5em;
   }
 
   ul.breadcrumb li.link:hover {
-    cursor:pointer;
-    color: #01447e;
-    background-color: aqua;
+
   }

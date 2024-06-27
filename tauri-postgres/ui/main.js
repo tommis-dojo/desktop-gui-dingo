@@ -148,7 +148,7 @@ function get_task(stateless_query) {
   return Object.keys(q)[0];
 }
 
-function toBreadcrumbItems(stateless_query) {
+function toPathItems(stateless_query) {
   let q = stateless_query["query"];
   let database = null;
   let table = null;
@@ -175,7 +175,7 @@ function toBreadcrumbItems(stateless_query) {
 }
 
 function updateDatabasepath(query) {
-  let breadcrumb_items = toBreadcrumbItems(query);
+  let breadcrumb_items = toPathItems(query);
 
   document.querySelector("#databasePath .connection_string").value = breadcrumb_items["connection_string"];
   document.querySelector("#databasePath .database").value = breadcrumb_items["database"];
@@ -189,7 +189,57 @@ function InformStatus(message) {
 
 /* Import-Table-Contents */
 
-function replaceTableContents(rows) {
+function determineCellFunctionality(cellData, lastQuery) {
+  let cellType = Object.keys(cellData)[0];
+  let cellText = cellData[cellType];
+  let cellClass = cellText;
+  let cellFunction = null;
+  
+  let pathItems = toPathItems(lastQuery);
+  let lastConnectionString = pathItems["connection_string"];
+  let lastDatabase = pathItems["database"];
+
+  switch (cellType) {
+    case "Text": {
+      cellFunction = null;
+    } break;
+    case "Database": {
+      cellClass += " link";
+      let database = cellText;
+      let query = createDbQuery(lastConnectionString, database, null);
+      cellFunction = () => { dbRequest(query); }
+    } break;
+    case "Table": {
+      cellClass += " link";
+      let database = lastDatabase;
+      let table = cellText;
+      let query = createDbQuery(lastConnectionString, database, table);
+      cellFunction = () => { dbRequest(query); }
+    } break;
+  }
+  
+  return {
+    "text": cellText,
+    "cellClass": cellClass,
+    "cellFunction": cellFunction
+  }
+}
+
+function amendCellFunctionality(domCell, text, cls, f) {
+  domCell.innerHTML = text;
+  if (cls !== null) {
+    domCell.className = cls;
+  }
+  if (f !== null) {
+    domCell.addEventListener("click", f);
+  }
+}
+
+function insertCellData(domCell, cellInfo) {
+  amendCellFunctionality(domCell, cellInfo["text"], cellInfo["cellClass"], cellInfo["cellFunction"]);
+}
+
+function replaceTableContents(rows, lastQuery) {
   console.log("replaceTableContents(), num rows = " + rows.length);
 
   if (rows) {
@@ -207,15 +257,16 @@ function replaceTableContents(rows) {
       let tr = dbTable.insertRow();
 
       row.forEach(function(cellData) {
-        let cellText = cellData["Text"];
+        let cellInfo = determineCellFunctionality(cellData, lastQuery);
+
         if (is_header) {
           // header
           let th = tr.appendChild(document.createElement("th"));
-          th.textContent = cellText;
+          insertCellData(th,  cellInfo);
         } else {
           // regular row
           var cell = tr.insertCell();
-          cell.innerHTML = cellText;
+          insertCellData(cell, cellInfo);
         }
       });
       is_header = false;
@@ -224,12 +275,10 @@ function replaceTableContents(rows) {
 }
 
 async function dbRequest(dbQuery) {
-  InformStatus("Note dbRequest: " + JSON.stringify(dbQuery))
   invoke("db_query",{ query: dbQuery})
     .then((message) => {
-      // InformStatus("Note message: " + JSON.stringify(message))
-      replaceTableContents(message);
-      let path = toBreadcrumbItems(dbQuery);
+      replaceTableContents(message, dbQuery);
+      let path = toPathItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path
     })
     .catch((error) => InformStatus("Error: " + error));

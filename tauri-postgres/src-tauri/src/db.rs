@@ -12,7 +12,7 @@ use tauri::State;
 use tokio::select;
 use tokio_postgres::types::Type;
 use tokio_util::sync::CancellationToken;
-use types::{TypedField, TypedTable};
+use types::{BasicTextField, BasicTextTable, TypedField};
 
 /// Several things:
 ///
@@ -107,6 +107,15 @@ pub mod types {
     pub struct StatelessQuery {
         pub connection: Connection,
         pub query: Query,
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct BasicTextField {
+        pub text: String,
+        pub column_index: usize,
+    }
+    pub struct BasicTextTable {
+        pub fields: Vec<Vec<BasicTextField>>,
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -279,17 +288,24 @@ fn row_to_strings(row: &tokio_postgres::Row) -> Vec<String> {
         .collect()
 }
 
-fn row_to_typed_text(row: &tokio_postgres::Row) -> Vec<TypedField> {
+fn row_to_basic_fields(row: &tokio_postgres::Row) -> Vec<BasicTextField> {
     let strings = row_to_strings(row);
-    strings.into_iter().map(|s| TypedField::Text(s)).collect()
+    strings
+        .into_iter()
+        .enumerate()
+        .map(|(column_index, s)| BasicTextField {
+            text: s,
+            column_index: column_index,
+        })
+        .collect()
 }
 
 /// Connect to database and run single query
 ///
-async fn run_query(
+async fn run_standalone_query(
     connection_str: String,
     query: String,
-) -> Result<types::TypedTable, Box<dyn std::error::Error + Send + Sync>> {
+) -> Result<types::BasicTextTable, Box<dyn std::error::Error + Send + Sync>> {
     println!("Connection-String: \"{}\"", connection_str);
     let (client, connection) =
         tokio_postgres::connect(&connection_str, tokio_postgres::NoTls).await?;
@@ -310,11 +326,13 @@ async fn run_query(
 
     debug_rows(&rows);
 
-    let content: TypedTable = rows
+    let fields = rows
         .into_iter()
-        .map(|row| row_to_typed_text(&row))
+        .map(|row| row_to_basic_fields(&row))
         .collect();
-    Ok(content)
+
+    let basic_table = BasicTextTable { fields: fields };
+    Ok(basic_table)
 }
 
 struct WhateverError {}
@@ -337,6 +355,37 @@ impl std::error::Error for WhateverError {
     }
 }
 
+/// Convert single text field to a typed field
+///
+/// This requires some context knowledge
+///
+fn convert_to_typed_cell(text_cell: types::BasicTextField, query: &types::Query) -> TypedField {
+    let s = text_cell.text;
+    match query {
+        types::Query::GetDatabases => TypedField::Database(s),
+        types::Query::GetTables(_) => TypedField::Table(s),
+        types::Query::GetTableContents(_) => TypedField::Text(s),
+    }
+}
+
+/// Convert table so that elements from text to typed elements.
+///
+/// Originally all cells in the table are just text entries.
+/// Depending on context (query), they can be specified as being databases or tables.
+///
+fn convert_rows(table: types::BasicTextTable, query: &types::Query) -> types::TypedTable {
+    let typed_table = table
+        .fields
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|text_cell: BasicTextField| convert_to_typed_cell(text_cell, query))
+                .collect()
+        })
+        .collect();
+    typed_table
+}
+
 /// Standalone task that handles database requests and returns responses
 ///
 pub async fn db_task(
@@ -353,14 +402,25 @@ pub async fn db_task(
         let connection_str = get_resulting_connection_string(connection_raw, &database);
         let query_string = db_query.query.get_query_string();
 
-        let table_data = run_query(connection_str, query_string).await;
+        let table_data = run_standalone_query(connection_str, query_string).await;
         match table_data {
             Ok(rows) => {
-                if let Err(_) = channel_to_tauri_tx.send(rows).await {
+                let converted_rows = convert_rows(rows, &db_query.query);
+                if let Err(_) = channel_to_tauri_tx.send(converted_rows).await {
                     return Ok(());
                 }
             }
-            Err(_) => {}
+            Err(_) => {
+                println!("Error executing query - no results");
+                if let Err(_) = channel_to_tauri_tx
+                    .send(vec![vec![TypedField::Text(String::from(
+                        "Error executing query",
+                    ))]])
+                    .await
+                {
+                    return Ok(());
+                }
+            }
         }
     }
     Ok(())
