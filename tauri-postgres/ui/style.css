@@ -14,13 +14,11 @@
     -webkit-text-size-adjust: 100%;
   }
 
-  /* Custom Query */
-
-  #custom-query {
-    display: none;
-  }
-
   /* General */
+
+  .debug {
+    display: none
+  }
 
   .link {
     color: #0275d8;
@@ -33,9 +31,15 @@
     background-color: aqua;
   }
 
+  /* Custom Query */
+
+  #custom-query {
+    display: none;
+  }
+
   /* Table */
 
-  td {
+  th, td {
     border: 1px solid black;
     border-right-width:0;
     border-bottom-width: 0;

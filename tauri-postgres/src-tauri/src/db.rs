@@ -114,6 +114,7 @@ pub mod types {
         pub column_index: usize,
     }
     pub struct BasicTextTable {
+        pub columns: Vec<String>,
         pub fields: Vec<Vec<BasicTextField>>,
     }
 
@@ -123,7 +124,11 @@ pub mod types {
         Database(String),
         Table(String),
     }
-    pub type TypedTable = Vec<Vec<TypedField>>;
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct TypedTable {
+        pub columns: Vec<String>,
+        pub fields: Vec<Vec<TypedField>>,
+    }
     pub type TypedTableResult = Result<TypedTable, ()>;
 
     pub struct StateHalfpipeToDb {
@@ -216,8 +221,9 @@ pub mod commands {
             match sender.send(query).await {
                 Ok(_) => {}
                 Err(_) => {
-                    return Ok(vec![]);
-                    //return Err(Box::new(types::WhateverError{ /* Error send db query to db task */}));
+                    /* Error send db query to db task */
+                    println!("Could not send query to task");
+                    return Err(());
                 }
             }
         }
@@ -226,11 +232,10 @@ pub mod commands {
             if let Some(table_result) = receiver.recv().await {
                 table_result
             } else {
-                //Err(Box::new(types::WhateverError{}))
-                /*
-                    "db_query: did not receive an answer from db task"
-                */
-                Ok(vec![])
+                println!("Did not receive an answer from db task");
+
+                /* db_query: did not receive an answer from db task */
+                Err(())
             }
         }
     }
@@ -291,7 +296,9 @@ fn get_field_from_row(row: &tokio_postgres::Row, index: usize) -> String {
 }
 
 /// Print debug output of rows
-fn debug_rows(rows: &Vec<tokio_postgres::Row>) {
+fn debug_rows(column_names: &Vec<String>, rows: &Vec<tokio_postgres::Row>) {
+    println!("Column names: {:?}", column_names);
+
     println!("number of rows in result: {}", rows.len());
 
     for row in rows.iter() {
@@ -323,6 +330,16 @@ fn row_to_basic_fields(row: &tokio_postgres::Row) -> Vec<BasicTextField> {
         .collect()
 }
 
+fn get_column_name(row: &tokio_postgres::Row, column_index: usize) -> String {
+    String::from(row.columns()[column_index].name())
+}
+
+fn row_to_column_names(row: &tokio_postgres::Row) -> Vec<String> {
+    (0..row.len())
+        .map(|column_index| get_column_name(&row, column_index))
+        .collect()
+}
+
 /// Connect to database and run single query
 ///
 async fn run_standalone_query(
@@ -347,14 +364,22 @@ async fn run_standalone_query(
     token.cancel();
     db_connector_handle.await?;
 
-    debug_rows(&rows);
+    let column_names = if rows.len() > 0 {
+        row_to_column_names(&rows[0])
+    } else {
+        Vec::new()
+    };
+    debug_rows(&column_names, &rows);
 
-    let fields = rows
+    let fields: Vec<Vec<BasicTextField>> = rows
         .into_iter()
         .map(|row| row_to_basic_fields(&row))
         .collect();
 
-    let basic_table = BasicTextTable { fields: fields };
+    let basic_table = BasicTextTable {
+        columns: column_names,
+        fields: fields,
+    };
     Ok(basic_table)
 }
 
@@ -377,7 +402,7 @@ fn convert_to_typed_cell(text_cell: types::BasicTextField, query: &types::Query)
 /// Depending on context (query), they can be specified as being databases or tables.
 ///
 fn convert_rows(table: types::BasicTextTable, query: &types::Query) -> types::TypedTable {
-    let typed_table = table
+    let fields = table
         .fields
         .into_iter()
         .map(|row| {
@@ -386,7 +411,10 @@ fn convert_rows(table: types::BasicTextTable, query: &types::Query) -> types::Ty
                 .collect()
         })
         .collect();
-    typed_table
+    types::TypedTable {
+        columns: table.columns,
+        fields: fields,
+    }
 }
 
 /// Standalone task that handles database requests and returns responses
@@ -408,10 +436,13 @@ pub async fn db_task(
         let table_data = run_standalone_query(connection_str, query_string).await;
         match table_data {
             Ok(rows) => {
-                let converted_rows = convert_rows(rows, &db_query.query);
-                if let Err(_) = channel_to_tauri_tx.send(Ok(converted_rows)).await {
+                let converted_table = convert_rows(rows, &db_query.query);
+                if let Err(_) = channel_to_tauri_tx.send(Ok(converted_table)).await {
+                    println!("Could not return results to caller. Exit sb task.");
+
                     return Ok(());
                 }
+                println!("Returned results to caller okay");
             }
             Err(_) => {
                 println!("Error executing query - no results");

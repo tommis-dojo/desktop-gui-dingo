@@ -225,7 +225,7 @@ function determineCellFunctionality(cellData, lastQuery) {
   }
 }
 
-function amendCellFunctionality(domCell, text, cls, f) {
+function amendCell(domCell, text, cls, f) {
   domCell.innerHTML = text;
   if (cls !== null) {
     domCell.className = cls;
@@ -236,13 +236,13 @@ function amendCellFunctionality(domCell, text, cls, f) {
 }
 
 function insertCellData(domCell, cellInfo) {
-  amendCellFunctionality(domCell, cellInfo["text"], cellInfo["cellClass"], cellInfo["cellFunction"]);
+  amendCell(domCell, cellInfo["text"], cellInfo["cellClass"], cellInfo["cellFunction"]);
 }
 
-function replaceTableContents(rows, lastQuery) {
-  console.log("replaceTableContents(), num rows = " + rows.length);
+function replaceTableContents(table, lastQuery) {
+  console.log("replaceTableContents(), num rows = " + table.fields.length);
 
-  if (rows) {
+  if (table) {
     // Clear old table contents
     let num_rows = dbTable.rows.length;
 
@@ -250,26 +250,23 @@ function replaceTableContents(rows, lastQuery) {
       dbTable.deleteRow(-1);
     }
 
-    // Insert new table contents
-    // Assume no headers at first
-    var is_header = false;
-    rows.forEach(function(row) {
+    // Insert table header
+    let tr = dbTable.insertRow();
+    table.columns.forEach((column_name) => {
+      let th = tr.appendChild(document.createElement("th"));
+      amendCell(th, column_name, null, null);
+    })
+
+    // Insert table contents
+    table.fields.forEach(function(row) {
       let tr = dbTable.insertRow();
 
       row.forEach(function(cellData) {
         let cellInfo = determineCellFunctionality(cellData, lastQuery);
-
-        if (is_header) {
-          // header
-          let th = tr.appendChild(document.createElement("th"));
-          insertCellData(th,  cellInfo);
-        } else {
           // regular row
           var cell = tr.insertCell();
           insertCellData(cell, cellInfo);
-        }
       });
-      is_header = false;
     });
   }
 }
@@ -277,7 +274,7 @@ function replaceTableContents(rows, lastQuery) {
 async function dbRequest(dbQuery) {
   invoke("db_query",{ query: dbQuery})
     .then((message) => {
-      // InformStatus("Message: " + JSON.stringify(message));
+      //InformStatus("Message: " + JSON.stringify(message));
       replaceTableContents(message, dbQuery);
       let path = toPathItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path
@@ -313,6 +310,17 @@ async function dbRequestFromDbPath() {
   await dbRequest(query);
 }
 
+
+/* Example */
+
+/*
+
+const { invoke } = window.__TAURI__.tauri;
+let query = await invoke("suggest_query", {});
+invoke("db_query",{ query: query})
+.then((message) => {console.log("Message:" + JSON.stringify(message))})
+.catch((error) => {console.log("Error:" + JSON.stringify(error))});
+*/
 
 /* Mother */
 
