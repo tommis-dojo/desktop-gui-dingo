@@ -277,11 +277,12 @@ function replaceTableContents(rows, lastQuery) {
 async function dbRequest(dbQuery) {
   invoke("db_query",{ query: dbQuery})
     .then((message) => {
+      // InformStatus("Message: " + JSON.stringify(message));
       replaceTableContents(message, dbQuery);
       let path = toPathItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path
     })
-    .catch((error) => InformStatus("Error: " + error));
+    .catch((error) => InformStatus("Call to db_query returned an error (currently undefined): " + JSON.stringify(error)));
 }
 
 function valueFromPath(selectors) {

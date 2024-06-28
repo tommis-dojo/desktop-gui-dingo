@@ -6,8 +6,6 @@
 /// => Traits
 ///
 /// Common things separate.
-use std::fmt;
-
 use tauri::State;
 use tokio::select;
 use tokio_postgres::types::Type;
@@ -55,6 +53,7 @@ use types::{BasicTextField, BasicTextTable, TypedField};
 
 pub mod types {
     use serde::{Deserialize, Serialize};
+    use std::fmt;
     use tokio::sync::mpsc;
     use tokio::sync::Mutex;
 
@@ -125,6 +124,7 @@ pub mod types {
         Table(String),
     }
     pub type TypedTable = Vec<Vec<TypedField>>;
+    pub type TypedTableResult = Result<TypedTable, ()>;
 
     pub struct StateHalfpipeToDb {
         pub inner: Mutex<mpsc::Sender<StatelessQuery>>,
@@ -139,11 +139,11 @@ pub mod types {
     }
 
     pub struct StateHalfpipeToTauri {
-        pub inner: Mutex<mpsc::Receiver<TypedTable>>,
+        pub inner: Mutex<mpsc::Receiver<TypedTableResult>>,
     }
 
     impl StateHalfpipeToTauri {
-        pub fn from(receiver_from_db: mpsc::Receiver<TypedTable>) -> StateHalfpipeToTauri {
+        pub fn from(receiver_from_db: mpsc::Receiver<TypedTableResult>) -> StateHalfpipeToTauri {
             StateHalfpipeToTauri {
                 inner: Mutex::new(receiver_from_db),
             }
@@ -151,7 +151,28 @@ pub mod types {
     }
 
     pub type DatabaseQueryReceiver = mpsc::Receiver<StatelessQuery>;
-    pub type StringTableSender = mpsc::Sender<TypedTable>;
+    pub type StringTableSender = mpsc::Sender<TypedTableResult>;
+
+    #[derive(Deserialize, Serialize, Clone)]
+    pub struct WhateverError {}
+
+    impl fmt::Debug for WhateverError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "{{ file: {}, line: {} }}", file!(), line!()) // programmer-facing output
+        }
+    }
+
+    impl fmt::Display for WhateverError {
+        fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+            write!(f, "An Error Occurred, Please Try Again!") // user-facing output
+        }
+    }
+
+    impl std::error::Error for WhateverError {
+        fn description(&self) -> &str {
+            "WhateverError Platzhalter Beschreibung"
+        }
+    }
 }
 
 fn suggest_connection_str() -> String {
@@ -160,7 +181,7 @@ fn suggest_connection_str() -> String {
 
 pub mod commands {
 
-    use types::TypedTable;
+    use types::TypedTableResult;
 
     use super::*;
 
@@ -187,7 +208,7 @@ pub mod commands {
         query: types::StatelessQuery,
         to_db: State<'_, types::StateHalfpipeToDb>,
         from_db: State<'_, types::StateHalfpipeToTauri>,
-    ) -> Result<TypedTable, String> {
+    ) -> TypedTableResult {
         println!("Called: db_query");
         {
             let sender = to_db.inner.lock().await;
@@ -195,19 +216,21 @@ pub mod commands {
             match sender.send(query).await {
                 Ok(_) => {}
                 Err(_) => {
-                    return Err(String::from("Error send db query to db task"));
+                    return Ok(vec![]);
+                    //return Err(Box::new(types::WhateverError{ /* Error send db query to db task */}));
                 }
             }
         }
         {
             let mut receiver = from_db.inner.lock().await;
-            if let Some(table) = receiver.recv().await {
-                println!("db_query: received {} rows", table.len());
-                return Ok(table);
+            if let Some(table_result) = receiver.recv().await {
+                table_result
             } else {
-                Err(String::from(
-                    "db_query: Error receiving response to db query",
-                ))
+                //Err(Box::new(types::WhateverError{}))
+                /*
+                    "db_query: did not receive an answer from db task"
+                */
+                Ok(vec![])
             }
         }
     }
@@ -335,26 +358,6 @@ async fn run_standalone_query(
     Ok(basic_table)
 }
 
-struct WhateverError {}
-
-impl fmt::Debug for WhateverError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{{ file: {}, line: {} }}", file!(), line!()) // programmer-facing output
-    }
-}
-
-impl fmt::Display for WhateverError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "An Error Occurred, Please Try Again!") // user-facing output
-    }
-}
-
-impl std::error::Error for WhateverError {
-    fn description(&self) -> &str {
-        "WhateverError Platzhalter Beschreibung"
-    }
-}
-
 /// Convert single text field to a typed field
 ///
 /// This requires some context knowledge
@@ -406,18 +409,13 @@ pub async fn db_task(
         match table_data {
             Ok(rows) => {
                 let converted_rows = convert_rows(rows, &db_query.query);
-                if let Err(_) = channel_to_tauri_tx.send(converted_rows).await {
+                if let Err(_) = channel_to_tauri_tx.send(Ok(converted_rows)).await {
                     return Ok(());
                 }
             }
             Err(_) => {
                 println!("Error executing query - no results");
-                if let Err(_) = channel_to_tauri_tx
-                    .send(vec![vec![TypedField::Text(String::from(
-                        "Error executing query",
-                    ))]])
-                    .await
-                {
+                if let Err(_) = channel_to_tauri_tx.send(Err(())).await {
                     return Ok(());
                 }
             }
