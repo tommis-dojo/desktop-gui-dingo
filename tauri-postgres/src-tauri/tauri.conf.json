@@ -7,7 +7,7 @@
     "withGlobalTauri": true
   },
   "package": {
-    "productName": "tauri-js-ipc-to-app",
+    "productName": "tauri-postgres",
     "version": "0.1.0"
   },
   "tauri": {
@@ -29,7 +29,7 @@
         "icons/icon.icns",
         "icons/icon.ico"
       ],
-      "identifier": "tauri-js-ipc-to-app",
+      "identifier": "tauri-postgres",
       "longDescription": "",
       "macOS": {
         "entitlements": null,
@@ -58,7 +58,7 @@
         "fullscreen": false,
         "height": 600,
         "resizable": true,
-        "title": "Tauri IPC Example",
+        "title": "Tauri Postgres",
         "width": 800
       }
     ]
