@@ -8,39 +8,67 @@
     <script type="module" src="/main.js" defer></script>
   </head>
   <body>
-    <h1>Datenbank</h1>
+    <header id="header" class="header-content">
+      <h1>Datenbank</h1>
+    </header>
+    <div class="content">
+      <nav id="nav" class="nav-content">
+        <ul>
+          <li>Datenbank</li>
+          <!-- <li>Connektoren</li> -->
+        </ul>
+      </nav>
+      <main>
+        <div class="component debug">
+          <p>
+            Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i
+          </p>
+        </div>
 
-    <p class="debug">
-      Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i
-    </p>
-
-    <ul id="breadcrumbs" class="breadcrumb"></ul>
-
-    <div id="custom-query">
-      <h2>Anfrage</h2>
-
-      <div id="databasePath">
-        <table cellspacing="0" cellpadding="0">
-        <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
-        <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
-        <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
-        </table>
-        <p>What do you want to query today?</p>
-        <button class="request" type="button">DB Anfrage schicken</button>
-      </div>
+        <div class="component db">
+          <div class="component-header secondary-content">
+            <ul id="breadcrumbs" class="breadcrumb"></ul>
+          </div>
+      
+          <div class="component-main primary-content">
+            <div id="custom-query">
+              <h2>Anfrage</h2>
+        
+              <div id="databasePath">
+                <table cellspacing="0" cellpadding="0">
+                <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
+                <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
+                <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
+                </table>
+                <p>What do you want to query today?</p>
+                <button class="request" type="button">DB Anfrage schicken</button>
+              </div>
+            </div>
+              <div id="db-table">
+              <table cellspacing="0" cellpadding="0">
+                <!--
+                <tr><th>Column</th><th>Column</th></tr>
+                <tr><td>row</td><td>row</td></tr>
+                -->
+              </table>
+            </div>
+          </div>
+      
+          <div class="component-footer secondary-content">
+            <p id="statusbar">Statusbar</p>  
+          </div>  
+        </div>
+        <div id="context">
+          <ul>
+            <li>bla a</li>
+            <li>bla b</li>
+          </ul>
+        </div>
+      </main>
     </div>
+    <footer id="footer" class="footer-content">
+      <p>Footer Content</p>
+    </footer>
 
-    <h2>Inhalte</h2>
-    <div id="db-table">
-      <table cellspacing="0" cellpadding="0">
-        <!--
-        <tr><th>Column</th><th>Column</th></tr>
-        <tr><td>row</td><td>row</td></tr>
-        -->
-      </table>
-    </div>
-
-    <h2>Statusbar</h2>
-    <p id="statusbar">Statusbar</p>
   </body>
 </html>

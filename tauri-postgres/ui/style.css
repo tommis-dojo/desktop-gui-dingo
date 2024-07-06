@@ -16,9 +16,117 @@
 
   /* General */
 
-  .debug {
-    display: none
+  body {
+    display: flex;
+    flex-direction: column;
+    background-color: magenta;
+    margin: 0;
+    overflow: hidden;
+    height: 100vh;
   }
+
+  p {
+    margin: 0;
+    padding: 0;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+  }
+
+  header, footer {
+    overflow: hidden;
+    flex-shrink: 0;
+    color: white;
+    padding: 1em;
+  }
+
+  header {
+    padding-left: 2vw;
+  }
+
+  .content {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  footer {
+    /* display: none; */
+  }
+
+  nav {
+    width: 25vw;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    overflow-y: auto;
+    padding: 1em;
+  }
+
+  main {
+    box-sizing: border-box;
+    flex: 1 0 auto;
+  }
+
+  .component {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+
+  .component-header, .component-footer {
+    padding: 10px;
+  }
+
+  .component-main {
+    overflow-y: auto;
+    flex: 1 1 auto;
+    padding: 10px;
+  }
+
+  /* General types */
+
+  .header-content {
+    background-color: mediumseagreen;
+    color: white;
+  }
+
+  .footer-content {
+    background-color: mediumseagreen;
+    color: white;
+  }
+
+  .nav-content {
+    background-color: black;
+    color: white;
+  }
+
+  .primary-content {
+    background-color: white;
+    color: black;
+  }
+
+  .secondary-content {
+    background-color: lightgrey;
+    color: black;
+  }
+
+  /* Individual components */
+
+  .debug {
+    display: none;
+  }
+
+  #context {
+    display: none;
+  }
+
+  nav ul {
+    list-style: none;
+  }
+
+  /* Links */
 
   .link {
     color: #0275d8;
@@ -49,11 +157,9 @@
 
   td:nth-last-child(1) {
     border-right-width: 1px;
-    /*color: red;*/ /* markiert */
   }
   tr:nth-last-child(1) td {
     border-bottom-width: 1px;
-    /*background-color: lightyellow;*/ /* markiert */
   }
   
   th {
@@ -82,8 +188,6 @@
   /* Breadcrumbs */
 
   ul.breadcrumb {
-    /* Pixel? Dumme Idee, oder? Was statt dessen? */
-    padding: 10px 16px;
     list-style: none;
   }
   
