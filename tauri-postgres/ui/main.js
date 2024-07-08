@@ -324,13 +324,46 @@ invoke("db_query",{ query: query})
 
 /* Mother */
 
+
+let unselectComponents = () => {
+  document.querySelectorAll(".component").forEach(
+    (node) => node.classList.add("hidden"));
+  document.querySelectorAll(".nav").forEach(
+    (node) => node.classList.remove("nav-selected"));
+}
+
+let selectComponent = (componentName) => {
+  unselectComponents();
+
+  let component = document.querySelector(".component." + componentName);
+  component.classList.remove("hidden");
+
+  let nav = document.querySelector(".nav." + componentName);
+  nav.classList.add("nav-selected");
+}
+
+let initComponentNavigation = (componentName) => {
+  document.querySelector(".nav." + componentName).
+    addEventListener("click", () => {selectComponent(componentName)});
+}
+
+let initNavigation = () => {
+  unselectComponents();
+  // Das folgende könnte ohne Umstände automatisch gehen
+  initComponentNavigation("db");
+  initComponentNavigation("connectors")
+  initComponentNavigation("about")
+}
+
 async function initialQuery(){
+  selectComponent("db");
   let query = await invoke("suggest_query", {});
   await dbRequest(query);
   updateDatabasepath(query);
 }
 
 window.addEventListener("DOMContentLoaded", () => {
+  initNavigation();
   initVariables();
   initEventFunctions();
   initialQuery();

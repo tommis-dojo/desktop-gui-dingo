@@ -12,17 +12,35 @@
       <h1>Datenbank</h1>
     </header>
     <div class="content">
-      <nav id="nav" class="nav-content">
+      <nav class="nav-content">
         <ul>
-          <li class="nav-selected">Datenbankbrowser</li>
-          <!-- <li>Connektoren</li> -->
+          <li class="nav link db">Datenbankbrowser</li>
+          <li class="nav link connectors">Konnektoren</li>
+          <li class="nav link about">About</li>
         </ul>
       </nav>
       <main>
-        <div class="component debug">
+        <div class="component about">
+          <h2>Über tauri-postgres</h2>
           <p>
             Hinweis: Konsole mittels Rechtsclick / Ctrl-Shift-i / Command-Option-i
           </p>
+        </div>
+
+        <div class="component connectors">
+          <div id="custom-query">
+            <h2>Datenbank-Verbindung</h2>
+      
+            <div id="databasePath">
+              <table cellspacing="0" cellpadding="0">
+              <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
+              <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
+              <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
+              </table>
+              <p>What do you want to query today?</p>
+              <button class="request" type="button">DB Anfrage schicken</button>
+            </div>
+          </div>
         </div>
 
         <div class="component db">
@@ -31,20 +49,7 @@
           </div>
       
           <div class="component-main primary-content">
-            <div id="custom-query">
-              <h2>Anfrage</h2>
-        
-              <div id="databasePath">
-                <table cellspacing="0" cellpadding="0">
-                <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
-                <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
-                <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
-                </table>
-                <p>What do you want to query today?</p>
-                <button class="request" type="button">DB Anfrage schicken</button>
-              </div>
-            </div>
-              <div id="db-table">
+            <div id="db-table">
               <table cellspacing="0" cellpadding="0">
                 <!--
                 <tr><th>Column</th><th>Column</th></tr>

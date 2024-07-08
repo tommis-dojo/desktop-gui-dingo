@@ -25,6 +25,11 @@
     height: 100vh;
   }
 
+  h1, h2, h3 {
+    background-color: #38a2ff;
+    padding: 0.5em;
+  }
+
   p {
     margin: 0;
     padding: 0;
@@ -53,10 +58,6 @@
     overflow: hidden;
   }
 
-  footer {
-    /* display: none; */
-  }
-
   nav {
     width: 25vw;
     box-sizing: border-box;
@@ -67,14 +68,21 @@
   main {
     box-sizing: border-box;
     flex: 1 0 auto;
+    background-color: #01447e;
   }
 
   .component {
     display: flex;
     flex-direction: column;
     height: 100%;
-    background-color: #01447e;
-    padding-left: 0.5em;
+    background-color: white;
+    margin-left: 10px;
+    padding: 10px;
+  }
+
+  /* Preliminary specialization*/
+  .component.db {
+    padding: 0;
   }
 
   .component-header, .component-footer {
@@ -127,7 +135,7 @@
 
   /* Individual components */
 
-  .debug {
+  .hidden {
     display: none;
   }
 
@@ -139,23 +147,45 @@
     list-style: none;
   }
 
-  /* Links */
+  /* Breadcrumbs */
 
-  .link {
+  ul.breadcrumb {
+    list-style: none;
+  }
+  
+  ul.breadcrumb li {
+    display: inline;
+    padding: 3px 3px;
+    margin: 0;
+    text-decoration: none;
+  }
+
+  ul.breadcrumb li.breadcrumb_separator {
+    padding-left: 0;
+    padding-right: 0;
+    margin-left: 3px;
+    margin-right: 3px;
+  }
+
+  ul.breadcrumb li.link {
+    padding-left: 0.5em;
+    padding-right: 0.5em;
     color: #0275d8;
     background-color: #eee;
   }
+
+  ul.breadcrumb li.link:hover {
+    color: #01447e;
+    background-color: aqua;
+  }
+
+
+  /* Links */
 
   .link:hover {
     cursor:pointer;
     color: #01447e;
     background-color: aqua;
-  }
-
-  /* Custom Query */
-
-  #custom-query {
-    display: none;
   }
 
   /* Table */
@@ -198,31 +228,4 @@
     background-color: white;
   }
 
-  /* Breadcrumbs */
 
-  ul.breadcrumb {
-    list-style: none;
-  }
-  
-  ul.breadcrumb li {
-    display: inline;
-    padding: 3px 3px;
-    margin: 0;
-    text-decoration: none;
-  }
-
-  ul.breadcrumb li.breadcrumb_separator {
-    padding-left: 0;
-    padding-right: 0;
-    margin-left: 3px;
-    margin-right: 3px;
-  }
-
-  ul.breadcrumb li.link {
-    padding-left: 0.5em;
-    padding-right: 0.5em;
-  }
-
-  ul.breadcrumb li.link:hover {
-
-  }
