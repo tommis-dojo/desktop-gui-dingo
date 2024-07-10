@@ -21,22 +21,42 @@ function onEnterDbRequest(event) {
   }
 }
 
-function initEventFunctions() {
-  document
-    .querySelector("#databasePath button.request")
-    .addEventListener("click", () => dbRequestFromDbPath());
+async function initEventFunctions() {
+
+  /* connection */
+  let suggested_query = await invoke("suggest_query", {});
+  let connection_string = suggested_query["connection"]["Stateless"];
   
-  document
-    .querySelector("#databasePath .connection_string")
-    .addEventListener('keydown', onEnterDbRequest);
+  let elem_con_string = document.querySelector(".connection-string");
+  let elem_con_test = document.querySelector(".connection-test")
+  let elem_con_test_result = document.querySelector(".connection-result");
+  let elem_con_select = document.querySelector(".connection-select");
+  let elem_con_select_confirm = document.querySelector(".connection-select-confirm");
 
-  document
-    .querySelector("#databasePath .database")
-    .addEventListener('keydown', onEnterDbRequest);
+  elem_con_string.value = connection_string;
+  
+  elem_con_test.addEventListener("click", () => {
+    invoke("test_connection_string",
+      { "connectionString": elem_con_string.value }
+    )
+    .then((bool_result) => {
+      if (bool_result) {
+        elem_con_test_result.innerHTML = "✅";
+      } else {
+        elem_con_test_result.innerHTML = "❎";
+      }
+    })
+    .catch((error) => {
+      elem_con_test_result.innerHTML = "error running test";
+    });
+  });
 
-  document
-    .querySelector("#databasePath .table")
-    .addEventListener('keydown', onEnterDbRequest);
+  elem_con_select.addEventListener("click", () => {
+    dbRequest(createDbQuery(elem_con_string.value, null, null))
+      .then((message) => { elem_con_select_confirm.innerHTML = "✅" })
+      .catch((error) => { elem_con_select_confirm.innerHTML = "❎" })
+    ;
+  });
 }
 
 /* Status */
@@ -174,13 +194,6 @@ function toPathItems(stateless_query) {
   }
 }
 
-function updateDatabasepath(query) {
-  let breadcrumb_items = toPathItems(query);
-
-  document.querySelector("#databasePath .connection_string").value = breadcrumb_items["connection_string"];
-  document.querySelector("#databasePath .database").value = breadcrumb_items["database"];
-  document.querySelector("#databasePath .table").value = breadcrumb_items["table"];
-}
 
 function InformStatus(message) {
   let s = document.querySelector("#statusbar");
@@ -279,7 +292,7 @@ async function dbRequest(dbQuery) {
       let path = toPathItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path
     })
-    .catch((error) => InformStatus("Call to db_query returned an error (currently undefined): " + JSON.stringify(error)));
+    .catch((error) => { InformStatus("Call to db_query returned an error: " + JSON.stringify(error))});
 }
 
 function valueFromPath(selectors) {
@@ -297,18 +310,6 @@ function valueFromPath(selectors) {
   return value;
 }
 
-/**
- * 
- */
-async function dbRequestFromDbPath() {
-  let dbPath = {};
-  dbPath["connection_string"] = valueFromPath("#databasePath .connection_string");
-  dbPath["database"] = valueFromPath("#databasePath .database");
-  dbPath["table"] = valueFromPath("#databasePath .table");
-
-  let query = createDbQueryFromPath(dbPath);
-  await dbRequest(query);
-}
 
 
 /* Example */
@@ -359,7 +360,6 @@ async function initialQuery(){
   selectComponent("db");
   let query = await invoke("suggest_query", {});
   await dbRequest(query);
-  updateDatabasepath(query);
 }
 
 window.addEventListener("DOMContentLoaded", () => {

@@ -31,7 +31,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
         .manage(db::types::StateHalfpipeToTauri::from(channel_to_tauri_rx))
         .invoke_handler(tauri::generate_handler![
             db::commands::db_query,
-            db::commands::suggest_query
+            db::commands::suggest_query,
+            db::commands::test_connection_string
         ])
         .run(tauri::generate_context!());
 

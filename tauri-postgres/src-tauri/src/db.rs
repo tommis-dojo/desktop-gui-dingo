@@ -190,6 +190,11 @@ pub mod commands {
 
     use super::*;
 
+    #[tauri::command]
+    pub async fn test_connection_string(connection_string: String) -> bool {
+        run_check_connection(connection_string).await
+    } 
+
     /// Return a path and a name for the location to be used as "home"
     ///
     #[tauri::command]
@@ -230,6 +235,7 @@ pub mod commands {
         {
             let mut receiver = from_db.inner.lock().await;
             if let Some(table_result) = receiver.recv().await {
+                println!("Sending to frontend: {:?}", table_result);
                 table_result
             } else {
                 println!("Did not receive an answer from db task");
@@ -381,6 +387,21 @@ async fn run_standalone_query(
         fields: fields,
     };
     Ok(basic_table)
+}
+
+async fn run_check_connection(connection_str: String) -> bool {
+    let q = String::from("SELECT 147 as a;");
+    if let Ok(table) = run_standalone_query(connection_str, q).await {
+        let size_okay = (&table).fields.len() == 1 && (&table).fields[0].len() == 1;
+        if !size_okay {
+            false
+        } else {
+            let item = &table.fields[0][0];
+            item.text == String::from("147")
+        }
+    } else {
+        false
+    }
 }
 
 /// Convert single text field to a typed field

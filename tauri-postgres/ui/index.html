@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    <meta charset="UTF-8" />
-    <link rel="stylesheet" href="style.css" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta charset="UTF-8">
+    <link rel="stylesheet" href="style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Von Datenbank lesen</title>
     <script type="module" src="/main.js" defer></script>
   </head>
@@ -28,40 +28,47 @@
         </div>
 
         <div class="component connectors">
-          <div id="custom-query">
             <h2>Datenbank-Verbindung</h2>
-      
-            <div id="databasePath">
-              <table cellspacing="0" cellpadding="0">
-              <tr><td>connection_string</td><td><input class="connection_string" placeholder="connecting" spellcheck="false"/></td></tr>
-              <tr><td>database</td><td><input class="database" placeholder="database" spellcheck="false"/></td></tr>
-              <tr><td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td></tr>
-              </table>
-              <p>What do you want to query today?</p>
-              <button class="request" type="button">DB Anfrage schicken</button>
-            </div>
-          </div>
+            <p>Verbindungsstring:
+              <input type="text" class="connection-string" placeholder="connecting" size="50" spellcheck="false">
+            </p>
+            <p>
+              <button class="connection-test" type="button">Prüfen</button>
+              <span class="connection-result"></span>
+            </p>
+            <p>
+              <button class="connection-select" type="button">Übernehmen</button>
+              <span class="connection-select-confirm"></span>
+            </p>
+                <!--
+                <tr>
+                  <td>Anfrage</td>
+                  <td><input class="custom-query" placeholder="select 123 as a;" spellcheck="false"/></td>
+                </tr>
+                <tr>
+                  <td>table</td><td><input class="table" placeholder="table" spellcheck="false"/></td>
+                </tr>
+              -->
         </div>
 
         <div class="component db">
           <div class="component-header secondary-content">
             <ul id="breadcrumbs" class="breadcrumb"></ul>
           </div>
-      
+
           <div class="component-main primary-content">
             <div id="db-table">
-              <table cellspacing="0" cellpadding="0">
-                <!--
+              <table>
+              <!--
                 <tr><th>Column</th><th>Column</th></tr>
                 <tr><td>row</td><td>row</td></tr>
-                -->
+              -->
               </table>
             </div>
           </div>
-      
           <div class="component-footer secondary-content">
-            <p id="statusbar">Statusbar</p>  
-          </div>  
+            <p id="statusbar">Statusbar</p>
+          </div>
         </div>
         <div id="context">
           <ul>
