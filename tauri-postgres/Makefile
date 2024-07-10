@@ -26,3 +26,8 @@ has-tauri-cli:
 .PHONY: clean
 clean: # remove any automatically created files
 	rm -rf src-tauri/target
+
+.PHONY: html-validate
+html-validate:  # validate html file
+	@which html-validate || echo "Need helper html-validate (e.g. 'npm install -h html-validate')"
+	html-validate ui/index.html
