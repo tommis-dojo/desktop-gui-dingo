@@ -286,9 +286,9 @@ function replaceTableContents(table, lastQuery) {
 
 async function dbRequest(dbQuery) {
   invoke("db_query",{ query: dbQuery})
-    .then((message) => {
-      //InformStatus("Message: " + JSON.stringify(message));
-      replaceTableContents(message, dbQuery);
+    .then((table) => {
+      InformStatus("Read " + table.fields.length + " rows");
+      replaceTableContents(table, dbQuery);
       let path = toPathItems(dbQuery);
       updateBreadcrumbs(path);  // just copy the query verbatim as current path
     })
