@@ -96,7 +96,7 @@ pub mod types {
             WHERE table_schema = 'public';",
                 ),
                 Self::GetTableContents(db_and_table) => {
-                    format!("SELECT * FROM {};", &db_and_table.table)
+                    format!("SELECT * FROM \"{}\";", &db_and_table.table)
                 }
             }
         }
@@ -193,7 +193,7 @@ pub mod commands {
     #[tauri::command]
     pub async fn test_connection_string(connection_string: String) -> bool {
         run_check_connection(connection_string).await
-    } 
+    }
 
     /// Return a path and a name for the location to be used as "home"
     ///
