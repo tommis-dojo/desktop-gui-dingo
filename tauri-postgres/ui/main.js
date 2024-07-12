@@ -12,12 +12,12 @@ function initVariables() {
   breadcrumbs = document.querySelector("#breadcrumbs");
 }
 
-function onEnterDbRequest(event) {
+function onEnterRun(event, f) {
   if (event.keyCode === 13) {
     // Prevent the default action
     event.preventDefault();
     
-    dbRequestFromDbPath();
+    f();
   }
 }
 
@@ -33,29 +33,55 @@ async function initEventFunctions() {
   let elem_con_select = document.querySelector(".connection-select");
   let elem_con_select_confirm = document.querySelector(".connection-select-confirm");
 
-  elem_con_string.value = connection_string;
-  
-  elem_con_test.addEventListener("click", () => {
+  const mark_okay = "&check; (okay)";
+  const mark_fail = "&cross; (fail)";
+
+  let reset_concheck = () => {
+    elem_con_test_result.innerHTML = "";
+    elem_con_select_confirm.innerHTML = "";
+  };
+
+  let run_concheck = () => {
+    reset_concheck();
     invoke("test_connection_string",
       { "connectionString": elem_con_string.value }
     )
     .then((bool_result) => {
       if (bool_result) {
-        elem_con_test_result.innerHTML = "✅";
+        elem_con_test_result.innerHTML = mark_okay;
       } else {
-        elem_con_test_result.innerHTML = "❎";
+        elem_con_test_result.innerHTML = mark_fail;
       }
     })
     .catch((error) => {
       elem_con_test_result.innerHTML = "error running test";
     });
+  };
+
+  elem_con_string.value = connection_string;
+
+  // Pressing enter will run connection check
+  elem_con_string.addEventListener("keyup", (event) => {
+    onEnterRun(event, run_concheck);
+  });
+
+  // Change to input will result in resetting 
+  elem_con_string.addEventListener("input", () => {
+    reset_concheck();
+  })
+  
+  // Click on "check" will run connection check
+  elem_con_test.addEventListener("click", () => {
+    run_concheck();
   });
 
   elem_con_select.addEventListener("click", () => {
+    elem_con_select_confirm.innerHTML = "";
     dbRequest(createDbQuery(elem_con_string.value, null, null))
-      .then((message) => { elem_con_select_confirm.innerHTML = "✅" })
-      .catch((error) => { elem_con_select_confirm.innerHTML = "❎" })
+      .then((message) => { elem_con_select_confirm.innerHTML = mark_okay; selectComponent("db"); })
+      .catch((error) => { elem_con_select_confirm.innerHTML = mark_fail })
     ;
+    
   });
 }
 
