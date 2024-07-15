@@ -10,7 +10,7 @@ use tauri::State;
 use tokio::select;
 use tokio_postgres::types::Type;
 use tokio_util::sync::CancellationToken;
-use types::{BasicTextField, BasicTextTable, TypedField};
+use types::{BasicTextField, BasicTextTable, DatabaseQueryResult, TypedField};
 
 /// Several things:
 ///
@@ -71,8 +71,15 @@ pub mod types {
         pub table: SomeTable,
     }
 
+    #[derive(Debug, Deserialize, Serialize, Clone)]
+    pub struct CustomQuery {
+        pub database: Option<SomeDatabase>,
+        pub sql_query: String,
+    }
+
     #[derive(Debug, Deserialize, Serialize)]
     pub enum Query {
+        CustomQuery(CustomQuery),
         GetDatabases,
         GetTables(Option<SomeDatabase>),
         GetTableContents(DatabaseTable),
@@ -81,6 +88,7 @@ pub mod types {
     impl Query {
         pub fn get_mentioned_database(&self) -> Option<SomeDatabase> {
             match self {
+                Self::CustomQuery(custom_query) => custom_query.database.clone(),
                 Self::GetDatabases => None,
                 Self::GetTables(opt_db) => opt_db.clone(),
                 Self::GetTableContents(db_table) => db_table.database.clone(),
@@ -89,6 +97,7 @@ pub mod types {
 
         pub fn get_query_string(&self) -> String {
             match self {
+                Self::CustomQuery(custom_query) => custom_query.sql_query.clone(),
                 Self::GetDatabases => String::from("SELECT datname FROM pg_database;"),
                 Self::GetTables(_) => String::from(
                     "SELECT table_name 
@@ -124,12 +133,20 @@ pub mod types {
         Database(String),
         Table(String),
     }
+
     #[derive(Debug, Deserialize, Serialize)]
     pub struct TypedTable {
         pub columns: Vec<String>,
         pub fields: Vec<Vec<TypedField>>,
     }
     pub type TypedTableResult = Result<TypedTable, ()>;
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct DatabaseQueryResult {
+        pub database: Option<SomeDatabase>,
+        pub sql_query: String,
+        pub table: TypedTableResult,
+    }
 
     pub struct StateHalfpipeToDb {
         pub inner: Mutex<mpsc::Sender<StatelessQuery>>,
@@ -144,11 +161,11 @@ pub mod types {
     }
 
     pub struct StateHalfpipeToTauri {
-        pub inner: Mutex<mpsc::Receiver<TypedTableResult>>,
+        pub inner: Mutex<mpsc::Receiver<DatabaseQueryResult>>,
     }
 
     impl StateHalfpipeToTauri {
-        pub fn from(receiver_from_db: mpsc::Receiver<TypedTableResult>) -> StateHalfpipeToTauri {
+        pub fn from(receiver_from_db: mpsc::Receiver<DatabaseQueryResult>) -> StateHalfpipeToTauri {
             StateHalfpipeToTauri {
                 inner: Mutex::new(receiver_from_db),
             }
@@ -156,7 +173,7 @@ pub mod types {
     }
 
     pub type DatabaseQueryReceiver = mpsc::Receiver<StatelessQuery>;
-    pub type StringTableSender = mpsc::Sender<TypedTableResult>;
+    pub type StringTableSender = mpsc::Sender<DatabaseQueryResult>;
 
     #[derive(Deserialize, Serialize, Clone)]
     pub struct WhateverError {}
@@ -186,7 +203,7 @@ fn suggest_connection_str() -> String {
 
 pub mod commands {
 
-    use types::TypedTableResult;
+    use types::DatabaseQueryResult;
 
     use super::*;
 
@@ -203,6 +220,7 @@ pub mod commands {
             connection: types::Connection::Stateless(suggest_connection_str()),
             query: types::Query::GetDatabases, // Available:
                                                //
+                                               // types::Query::CustomQuery(...)
                                                // types::Query::GetDatabases
                                                // types::Query::GetTables(
                                                //     Some(String::from("myuser")))
@@ -218,7 +236,7 @@ pub mod commands {
         query: types::StatelessQuery,
         to_db: State<'_, types::StateHalfpipeToDb>,
         from_db: State<'_, types::StateHalfpipeToTauri>,
-    ) -> TypedTableResult {
+    ) -> Result<DatabaseQueryResult, String> {
         println!("Called: db_query");
         {
             let sender = to_db.inner.lock().await;
@@ -226,22 +244,21 @@ pub mod commands {
             match sender.send(query).await {
                 Ok(_) => {}
                 Err(_) => {
-                    /* Error send db query to db task */
-                    println!("Could not send query to task");
-                    return Err(());
+                    let failure_msg = String::from("db_query: Could not send query to task");
+                    println!("{}", failure_msg);
+                    return Err(failure_msg);
                 }
             }
         }
         {
             let mut receiver = from_db.inner.lock().await;
-            if let Some(table_result) = receiver.recv().await {
-                println!("Sending to frontend: {:?}", table_result);
-                table_result
+            if let Some(query_result) = receiver.recv().await {
+                println!("Sending to frontend: {:?}", query_result);
+                Ok(query_result)
             } else {
-                println!("Did not receive an answer from db task");
-
-                /* db_query: did not receive an answer from db task */
-                Err(())
+                let failure_msg = String::from("db_query: Did not receive an answer from db task");
+                println!("{}", failure_msg);
+                return Err(failure_msg);
             }
         }
     }
@@ -350,7 +367,7 @@ fn row_to_column_names(row: &tokio_postgres::Row) -> Vec<String> {
 ///
 async fn run_standalone_query(
     connection_str: String,
-    query: String,
+    query: &String,
 ) -> Result<types::BasicTextTable, Box<dyn std::error::Error + Send + Sync>> {
     println!("Connection-String: \"{}\"", connection_str);
     let (client, connection) =
@@ -366,7 +383,7 @@ async fn run_standalone_query(
         }
     });
     println!("Query: \"{}\"", query);
-    let rows = client.query(&query, &[]).await?;
+    let rows = client.query(query, &[]).await?;
     token.cancel();
     db_connector_handle.await?;
 
@@ -391,7 +408,7 @@ async fn run_standalone_query(
 
 async fn run_check_connection(connection_str: String) -> bool {
     let q = String::from("SELECT 147 as a;");
-    if let Ok(table) = run_standalone_query(connection_str, q).await {
+    if let Ok(table) = run_standalone_query(connection_str, &q).await {
         let size_okay = (&table).fields.len() == 1 && (&table).fields[0].len() == 1;
         if !size_okay {
             false
@@ -411,6 +428,7 @@ async fn run_check_connection(connection_str: String) -> bool {
 fn convert_to_typed_cell(text_cell: types::BasicTextField, query: &types::Query) -> TypedField {
     let s = text_cell.text;
     match query {
+        types::Query::CustomQuery(_) => TypedField::Text(s),
         types::Query::GetDatabases => TypedField::Database(s),
         types::Query::GetTables(_) => TypedField::Table(s),
         types::Query::GetTableContents(_) => TypedField::Text(s),
@@ -454,11 +472,16 @@ pub async fn db_task(
         let connection_str = get_resulting_connection_string(connection_raw, &database);
         let query_string = db_query.query.get_query_string();
 
-        let table_data = run_standalone_query(connection_str, query_string).await;
+        let table_data = run_standalone_query(connection_str, &query_string).await;
         match table_data {
             Ok(rows) => {
                 let converted_table = convert_rows(rows, &db_query.query);
-                if let Err(_) = channel_to_tauri_tx.send(Ok(converted_table)).await {
+                let database_result = DatabaseQueryResult {
+                    database: database,
+                    sql_query: query_string,
+                    table: Ok(converted_table),
+                };
+                if let Err(_) = channel_to_tauri_tx.send(database_result).await {
                     println!("Could not return results to caller. Exit sb task.");
 
                     return Ok(());
@@ -467,7 +490,14 @@ pub async fn db_task(
             }
             Err(_) => {
                 println!("Error executing query - no results");
-                if let Err(_) = channel_to_tauri_tx.send(Err(())).await {
+                if let Err(_) = channel_to_tauri_tx
+                    .send(DatabaseQueryResult {
+                        database: database,
+                        sql_query: query_string,
+                        table: Err(()),
+                    })
+                    .await
+                {
                     return Ok(());
                 }
             }

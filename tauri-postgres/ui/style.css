@@ -68,7 +68,6 @@
   main {
     box-sizing: border-box;
     flex: 1 0 auto;
-    background-color: #01447e;
   }
 
   .component {
@@ -76,7 +75,6 @@
     flex-direction: column;
     height: 100%;
     background-color: white;
-    margin-left: 10px;
     padding: 10px;
   }
 
@@ -85,6 +83,10 @@
     padding: 0;
   }
 
+  .component.db p.custom-sql {
+    padding: 1em 0 0;
+  }
+  
   .component.connectors input {
     margin-left: 2em;
   }
@@ -175,7 +177,6 @@
     padding-left: 0.5em;
     padding-right: 0.5em;
     color: #0275d8;
-    background-color: #eee;
   }
 
   ul.breadcrumb li.link:hover {

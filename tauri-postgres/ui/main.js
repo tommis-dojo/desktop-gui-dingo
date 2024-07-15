@@ -6,10 +6,22 @@ const { invoke } = window.__TAURI__.tauri
 
 let dbTable;
 let breadcrumbs;
+let globalConnectionString;
+let customSqlQuery;
+let customDatabase;
 
-function initVariables() {
-  dbTable = document.querySelector("#db-table table");
-  breadcrumbs = document.querySelector("#breadcrumbs");
+/* Common */
+
+function useConnectionString(connection_string) {
+  globalConnectionString = connection_string;
+}
+
+function getConnectionStringFromQuery(stateless_query) {
+  return stateless_query["connection"]["Stateless"];
+}
+
+function getGlobalConnectionString() {
+  return globalConnectionString;
 }
 
 function onEnterRun(event, f) {
@@ -21,9 +33,56 @@ function onEnterRun(event, f) {
   }
 }
 
-async function initEventFunctions() {
+function InformStatus(message) {
+  let s = document.querySelector("#statusbar");
+  s.textContent = message;
+}
 
-  /* connection */
+/* DB Query (including custom query) */
+
+function initVariablesDbQuery() {
+  dbTable = document.querySelector("#db-table table");
+  breadcrumbs = document.querySelector("#breadcrumbs");
+  customSqlQuery = document.querySelector(".custom-sql .sql-query");
+  customDatabase = document.querySelector(".custom-sql .database");
+}
+
+let createCustomQuery = (connection_string, database, sqlQuery) => {
+  return {
+    connection: {
+      Stateless: connection_string
+    },
+    query: {
+      CustomQuery: {
+        database: database, 
+        sql_query: sqlQuery
+      }
+    }
+  }
+}
+
+async function runCustomQuery() {
+  await dbRequest(createCustomQuery(
+    getGlobalConnectionString(),
+    customDatabase.value, 
+    customSqlQuery.value));
+}
+
+function initEventsForCustomQuery() {
+  customSqlQuery.addEventListener("keyup", (event) => {
+    onEnterRun(event, runCustomQuery);
+  });
+  customSqlQuery.addEventListener("input", () => {
+    customSqlQuery.size = customSqlQuery.value.length;
+  });
+  customDatabase.addEventListener("keyup", (event) => {
+    onEnterRun(event, runCustomQuery);
+  });
+}
+
+/* connection configuration and test */
+
+async function initEventsForConnectionConfig() {
   let suggested_query = await invoke("suggest_query", {});
   let connection_string = suggested_query["connection"]["Stateless"];
   
@@ -36,13 +95,13 @@ async function initEventFunctions() {
   const mark_okay = "&check; (okay)";
   const mark_fail = "&cross; (fail)";
 
-  let reset_concheck = () => {
+  let resetConcheck = () => {
     elem_con_test_result.innerHTML = "";
     elem_con_select_confirm.innerHTML = "";
   };
 
   let run_concheck = () => {
-    reset_concheck();
+    resetConcheck();
     invoke("test_connection_string",
       { "connectionString": elem_con_string.value }
     )
@@ -67,7 +126,7 @@ async function initEventFunctions() {
 
   // Change to input will result in resetting 
   elem_con_string.addEventListener("input", () => {
-    reset_concheck();
+    resetConcheck();
   })
   
   // Click on "check" will run connection check
@@ -75,8 +134,19 @@ async function initEventFunctions() {
     run_concheck();
   });
 
+  // Click on "select" will use connection string for other requests
+  //
+  // See also: initialQuery()
+  //
+  // Please note and regret the inconsistent use of where
+  // the connection string is stored (inside query / global
+  // string).
+  //
   elem_con_select.addEventListener("click", () => {
     elem_con_select_confirm.innerHTML = "";
+
+    useConnectionString(elem_con_string.value);
+    
     dbRequest(createDbQuery(elem_con_string.value, null, null))
       .then((message) => { elem_con_select_confirm.innerHTML = mark_okay; selectComponent("db"); })
       .catch((error) => { elem_con_select_confirm.innerHTML = mark_fail })
@@ -85,9 +155,20 @@ async function initEventFunctions() {
   });
 }
 
+/* Bag things together */
+
+function initVariables() {
+  initVariablesDbQuery();
+}
+
+async function initEventFunctions() {
+  await initEventsForConnectionConfig();
+  await initEventsForCustomQuery();
+}
+
 /* Status */
 
-function db_path_shell() {
+function createEmptyDbPath() {
   return {
     "connection_string": null,
     "database": null,
@@ -158,7 +239,7 @@ function createDbQueryFromPath(path) {
 
 // Add an element to the breadcrumbs including link
 function addBreadcrumbIfGiven(path, altLinkText, pathElements) {
-  let subPath = db_path_shell();
+  let subPath = createEmptyDbPath();
   pathElements.forEach(key => { subPath[key] = path[key];});
 
   let key = pathElements[pathElements.length - 1];
@@ -189,7 +270,7 @@ function updateBreadcrumbs(path) {
   addBreadcrumbIfGiven(path, null, ["connection_string","database","table"]);
 }
 
-function get_task(stateless_query) {
+function getTaskFromQuery(stateless_query) {
   let q = stateless_query["query"];
   return Object.keys(q)[0];
 }
@@ -199,9 +280,12 @@ function toPathItems(stateless_query) {
   let database = null;
   let table = null;
 
-  let task = get_task(stateless_query);  // "GetDatabases", "GetTables", "GetTableContents"
+  let task = getTaskFromQuery(stateless_query);  // "GetDatabases", "GetTables", "GetTableContents"
   let task_info = q[task];
   switch (task) {
+    case "CustomQuery":
+      database = task_info["database"];
+      break;
     case "GetDatabases":
       break;
     case "GetTables":
@@ -213,17 +297,13 @@ function toPathItems(stateless_query) {
       break;
     default:
   }
-  return {
-    "connection_string": stateless_query["connection"]["Stateless"],
+  let pathItems = {
+    "connection_string": getConnectionStringFromQuery(stateless_query),
     "database": database,
     "table": table
   }
-}
 
-
-function InformStatus(message) {
-  let s = document.querySelector("#statusbar");
-  s.textContent = message;
+  return pathItems;
 }
 
 /* Import-Table-Contents */
@@ -311,14 +391,32 @@ function replaceTableContents(table, lastQuery) {
 }
 
 async function dbRequest(dbQuery) {
+  InformStatus("Running query: " + JSON.stringify(dbQuery));
   invoke("db_query",{ query: dbQuery})
-    .then((table) => {
-      InformStatus("Read " + table.fields.length + " rows");
-      replaceTableContents(table, dbQuery);
-      let path = toPathItems(dbQuery);
-      updateBreadcrumbs(path);  // just copy the query verbatim as current path
+    .then((queryResult) => {
+      let tableResult = queryResult.table;
+      if (tableResult.hasOwnProperty("Ok")) {
+        customSqlQuery.value = queryResult.sql_query.replace(/\s+/g,' ');
+        customSqlQuery.size = customSqlQuery.value.length;
+        if (queryResult.database !== null) {
+          customDatabase.value = queryResult.database;
+        }
+
+        InformStatus("Read " + tableResult.Ok.fields.length + " rows");
+        replaceTableContents(tableResult.Ok, dbQuery);
+        updateBreadcrumbs(toPathItems(dbQuery));  // just copy the query verbatim as current path
+      } else {
+
+        let err = "No successful query-results for query '" + queryResult.sql_query + "'";
+        if (queryResult.database !== null) {
+          err += " on database '" + queryResult.database + "'";
+        }
+        InformStatus(err);
+      }
     })
-    .catch((error) => { InformStatus("Call to db_query returned an error: " + JSON.stringify(error))});
+    .catch((error) => { 
+      InformStatus("Call to db_query returned an error: " + JSON.stringify(error))
+    });
 }
 
 function valueFromPath(selectors) {
@@ -349,8 +447,7 @@ invoke("db_query",{ query: query})
 .catch((error) => {console.log("Error:" + JSON.stringify(error))});
 */
 
-/* Mother */
-
+/* Navigation */
 
 let unselectComponents = () => {
   document.querySelectorAll(".component").forEach(
@@ -382,9 +479,12 @@ let initNavigation = () => {
   initComponentNavigation("about")
 }
 
+/* Mother */
+
 async function initialQuery(){
   selectComponent("db");
   let query = await invoke("suggest_query", {});
+  useConnectionString(getConnectionStringFromQuery(query));
   await dbRequest(query);
 }
 
