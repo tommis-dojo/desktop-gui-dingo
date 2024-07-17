@@ -10,14 +10,66 @@ let globalConnectionString;
 let customSqlQuery;
 let customDatabase;
 
+/* Hints for Debugging */
+
+/*
+const { invoke } = window.__TAURI__.tauri;
+let query = await invoke("suggest_query", {});
+invoke("db_query",{ query: query})
+.then((message) => {console.log("Message:" + JSON.stringify(message))})
+.catch((error) => {console.log("Error:" + JSON.stringify(error))});
+*/
+
+/* Query Types */
+
+// Query: backend request to database as defined by rust backend
+//        Examples: GetDatabases, GetTables, CustomQuery
+//
+//        For instance:
+//        
+//        {
+//          CustomQuery: {
+//            database: database, 
+//            sql_query: sqlQuery
+//          }
+//        }
+//
+//        or
+//
+//        "GetDatabases"
+//
+//        or
+//
+//        { "GetTables" : "mydatabase" }
+//
+// Path: [Database], [Path]
+//        Query can be created from this
+//
+// Connection: determines which database to connect to
+//        Currently is simply a string,
+//        contains (host, port, user, password)
+//
+//       {
+//         Stateless: connection_string
+//       }
+//
+// FullQuery: Query + Connection
+//
+//       {
+//         "connection": <some connection>,
+//         "query": <query>
+//       }
+//
+// Definitive: db.rs
+
+function getConnectionStringFromFullQuery(stateless_query) {
+  return stateless_query["connection"]["Stateless"];
+}
+
 /* Common */
 
 function useConnectionString(connection_string) {
   globalConnectionString = connection_string;
-}
-
-function getConnectionStringFromQuery(stateless_query) {
-  return stateless_query["connection"]["Stateless"];
 }
 
 function getGlobalConnectionString() {
@@ -28,7 +80,7 @@ function onEnterRun(event, f) {
   if (event.keyCode === 13) {
     // Prevent the default action
     event.preventDefault();
-    
+
     f();
   }
 }
@@ -47,25 +99,53 @@ function initVariablesDbQuery() {
   customDatabase = document.querySelector(".custom-sql .database");
 }
 
-let createCustomQuery = (connection_string, database, sqlQuery) => {
+function createCustomQuery(database, sqlQuery)
+{
   return {
-    connection: {
-      Stateless: connection_string
-    },
-    query: {
-      CustomQuery: {
-        database: database, 
-        sql_query: sqlQuery
-      }
+    CustomQuery: {
+      database: database, 
+      sql_query: sqlQuery
     }
   }
 }
 
-async function runCustomQuery() {
-  await dbRequest(createCustomQuery(
-    getGlobalConnectionString(),
-    customDatabase.value, 
-    customSqlQuery.value));
+function createQueryFromPathElements(database, table) {
+  /*
+    Possible values for "query":
+
+    "query": "GetDatabases"
+    "query": {"GetTables":"mydatabase"}
+    "query": {"GetTableContents":{
+        "database": "mydatabase"
+        "table": "mytable"
+      }}
+  */
+
+  let query;
+
+  if (table !== null) {
+    query = {
+      "GetTableContents":{
+        "database": database,
+        "table": table
+      }
+    }
+  } else if (database !== null) {
+    query = {"GetTables": database}
+  } else {
+    query = "GetDatabases";
+  }
+
+  return query;
+}
+
+function createFullQuery(connection_string, query) {
+  return {
+    "connection": {
+      "Stateless": getGlobalConnectionString()
+    },
+    "query": query
+  }
 }
 
 function initEventsForCustomQuery() {
@@ -147,11 +227,10 @@ async function initEventsForConnectionConfig() {
 
     useConnectionString(elem_con_string.value);
     
-    dbRequest(createDbQuery(elem_con_string.value, null, null))
+    dbFullRequest(createFullQuery(elem_con_string.value, createQueryFromPathElements(null, null)))
       .then((message) => { elem_con_select_confirm.innerHTML = mark_okay; selectComponent("db"); })
       .catch((error) => { elem_con_select_confirm.innerHTML = mark_fail })
     ;
-    
   });
 }
 
@@ -166,15 +245,7 @@ async function initEventFunctions() {
   await initEventsForCustomQuery();
 }
 
-/* Status */
-
-function createEmptyDbPath() {
-  return {
-    "connection_string": null,
-    "database": null,
-    "table": null
-  };
-}
+/* Breadcrumbs */
 
 function addTextLiTo(parent, className, textContent, linkFunction) {
   let li = document.createElement('li');
@@ -192,58 +263,17 @@ function addTextLiTo(parent, className, textContent, linkFunction) {
   parent.appendChild(li);  
 }
 
-
-function createDbQuery(connection_string, database, table) {
-
-  /*
-    Possible values for "query":
-
-    "query": "GetDatabases"
-    "query": {"GetTables":"mydatabase"}
-    "query": {"GetTableContents":{
-        "database": "mydatabase"
-        "table": "mytable"
-      }}
-  */
-
-  let query;
-
-  if (table !== null) {
-    query = {
-      "GetTableContents":{
-        "database": database,
-        "table": table
-      }
-    }
-  } else if (database !== null) {
-    query = {"GetTables": database}
-  } else {
-    query = "GetDatabases";
-  }
-
-  return {
-    "connection": {
-      "Stateless":connection_string
-    },
-    "query": query
-  }
-}
-
-function createDbQueryFromPath(path) {
-  return createDbQuery(
-    path["connection_string"],
-    path["database"],
-    path["table"])
-}
-
-
 // Add an element to the breadcrumbs including link
-function addBreadcrumbIfGiven(path, altLinkText, pathElements) {
-  let subPath = createEmptyDbPath();
-  pathElements.forEach(key => { subPath[key] = path[key];});
+function addBreadcrumbIfGiven(altLinkText, database, table) {
 
-  let key = pathElements[pathElements.length - 1];
-  let lastPathElement = path[key];
+  let lastPathElement;
+  if (table) {
+    lastPathElement = table;
+  } else if (database) {
+    lastPathElement = database;
+  } else {
+    lastPathElement = "(placeholder)";
+  }
 
   if (lastPathElement !== null) {
     addTextLiTo(breadcrumbs, "breadcrumb_separator", ">", null);
@@ -256,31 +286,37 @@ function addBreadcrumbIfGiven(path, altLinkText, pathElements) {
       linkText = lastPathElement;
     }
 
-    let statelessQuery = createDbQueryFromPath(subPath);
-    addTextLiTo(breadcrumbs, "link", linkText, () => dbRequest(statelessQuery));
+    addTextLiTo(breadcrumbs, "link", linkText, () => dbRequestFromPathElements(database, table));
   }
 }
 
-function updateBreadcrumbs(path) {
+function updateBreadcrumbs(pathElements) {
   // Breadcrumbs show everything but the main information
   breadcrumbs.innerHTML = '';
 
-  addBreadcrumbIfGiven(path, "home", ["connection_string"]);
-  addBreadcrumbIfGiven(path, null, ["connection_string","database"]);
-  addBreadcrumbIfGiven(path, null, ["connection_string","database","table"]);
+  let database = pathElements["database"];
+  let table = pathElements["table"];
+
+  addBreadcrumbIfGiven("home", null, null);
+  if (database) {
+    addBreadcrumbIfGiven(null, database, null);
+  }
+  if (table) {
+    addBreadcrumbIfGiven(null, database, table);
+  }
 }
 
-function getTaskFromQuery(stateless_query) {
-  let q = stateless_query["query"];
+function getTaskFromQuery(fullQuery) {
+  let q = fullQuery["query"];
   return Object.keys(q)[0];
 }
 
-function toPathItems(stateless_query) {
-  let q = stateless_query["query"];
+function toPathItems(fullQuery) {
+  let q = fullQuery["query"];
   let database = null;
   let table = null;
 
-  let task = getTaskFromQuery(stateless_query);  // "GetDatabases", "GetTables", "GetTableContents"
+  let task = getTaskFromQuery(fullQuery);  // "CustomQuery", "GetDatabases", "GetTables", "GetTableContents"
   let task_info = q[task];
   switch (task) {
     case "CustomQuery":
@@ -298,7 +334,6 @@ function toPathItems(stateless_query) {
     default:
   }
   let pathItems = {
-    "connection_string": getConnectionStringFromQuery(stateless_query),
     "database": database,
     "table": table
   }
@@ -308,14 +343,13 @@ function toPathItems(stateless_query) {
 
 /* Import-Table-Contents */
 
-function determineCellFunctionality(cellData, lastQuery) {
+function determineCellFunctionality(cellData, fullQuery) {
   let cellType = Object.keys(cellData)[0];
   let cellText = cellData[cellType];
   let cellClass = cellText;
   let cellFunction = null;
   
-  let pathItems = toPathItems(lastQuery);
-  let lastConnectionString = pathItems["connection_string"];
+  let pathItems = toPathItems(fullQuery);
   let lastDatabase = pathItems["database"];
 
   switch (cellType) {
@@ -325,15 +359,13 @@ function determineCellFunctionality(cellData, lastQuery) {
     case "Database": {
       cellClass += " link";
       let database = cellText;
-      let query = createDbQuery(lastConnectionString, database, null);
-      cellFunction = () => { dbRequest(query); }
+      cellFunction = () => { dbRequestFromPathElements(database, null); }
     } break;
     case "Table": {
       cellClass += " link";
       let database = lastDatabase;
       let table = cellText;
-      let query = createDbQuery(lastConnectionString, database, table);
-      cellFunction = () => { dbRequest(query); }
+      cellFunction = () => { dbRequestFromPathElements(database, table); }
     } break;
   }
   
@@ -390,9 +422,13 @@ function replaceTableContents(table, lastQuery) {
   }
 }
 
-async function dbRequest(dbQuery) {
-  InformStatus("Running query: " + JSON.stringify(dbQuery));
-  invoke("db_query",{ query: dbQuery})
+/** Will run a query to the database and process results (including DOM manipulation)
+ * 
+ * @param fullQuery containing connection and specific query
+ */
+async function dbFullRequest(fullQuery) {
+  InformStatus("Running query: " + JSON.stringify(fullQuery));
+  invoke("db_query",{ query: fullQuery})
     .then((queryResult) => {
       let tableResult = queryResult.table;
       if (tableResult.hasOwnProperty("Ok")) {
@@ -403,11 +439,11 @@ async function dbRequest(dbQuery) {
         }
 
         InformStatus("Read " + tableResult.Ok.fields.length + " rows");
-        replaceTableContents(tableResult.Ok, dbQuery);
-        updateBreadcrumbs(toPathItems(dbQuery));  // just copy the query verbatim as current path
+        replaceTableContents(tableResult.Ok, fullQuery);
+        updateBreadcrumbs(toPathItems(fullQuery));  // just copy the query verbatim as current path
       } else {
 
-        let err = "No successful query-results for query '" + queryResult.sql_query + "'";
+        let err = "Error: No successful query-results for query '" + queryResult.sql_query + "'";
         if (queryResult.database !== null) {
           err += " on database '" + queryResult.database + "'";
         }
@@ -415,37 +451,27 @@ async function dbRequest(dbQuery) {
       }
     })
     .catch((error) => { 
-      InformStatus("Call to db_query returned an error: " + JSON.stringify(error))
+      InformStatus("Error: Call to db_query returned an error: " + JSON.stringify(error))
     });
 }
 
-function valueFromPath(selectors) {
-  console.log("valueFromPath(" + selectors + ")")
-  let element = document.querySelector(selectors);
-  if (!element) {
-    return null;
-  }
-  
-  let value = element.value;
-  if (value == "") {
-    return null;
-  }
-
-  return value;
+// Callback function that initiates a full request for a given database and table
+//
+async function dbRequestFromPathElements(database, table) {
+  await dbFullRequest(createFullQuery(getGlobalConnectionString(), createQueryFromPathElements(database, table)));
 }
 
 
-
-/* Example */
-
-/*
-
-const { invoke } = window.__TAURI__.tauri;
-let query = await invoke("suggest_query", {});
-invoke("db_query",{ query: query})
-.then((message) => {console.log("Message:" + JSON.stringify(message))})
-.catch((error) => {console.log("Error:" + JSON.stringify(error))});
-*/
+async function runCustomQuery() {
+  await dbFullRequest(
+    createFullQuery(
+      getGlobalConnectionString(),
+      createCustomQuery(
+        customDatabase.value, 
+        customSqlQuery.value)
+    )
+  );
+}
 
 /* Navigation */
 
@@ -483,9 +509,10 @@ let initNavigation = () => {
 
 async function initialQuery(){
   selectComponent("db");
-  let query = await invoke("suggest_query", {});
-  useConnectionString(getConnectionStringFromQuery(query));
-  await dbRequest(query);
+  // Could split into "suggest_query" and "suggest_connection_string"
+  let fullQuery = await invoke("suggest_query", {});
+  useConnectionString(getConnectionStringFromFullQuery(fullQuery));
+  await dbFullRequest(fullQuery);
 }
 
 window.addEventListener("DOMContentLoaded", () => {

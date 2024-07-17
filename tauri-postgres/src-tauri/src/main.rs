@@ -19,7 +19,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error + Send>> {
 
     let (channel_to_tauri_tx, channel_to_tauri_rx) =
         mpsc::channel::<db::types::DatabaseQueryResult>(1);
-    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<db::types::StatelessQuery>(1);
+    let (channel_to_db_tx, channel_to_db_rx) = mpsc::channel::<db::types::FullQuery>(1);
 
     tokio::spawn(db::db_task(channel_to_db_rx, channel_to_tauri_tx));
 

@@ -112,7 +112,7 @@ pub mod types {
     }
 
     #[derive(Debug, Deserialize, Serialize)]
-    pub struct StatelessQuery {
+    pub struct FullQuery {
         pub connection: Connection,
         pub query: Query,
     }
@@ -149,11 +149,11 @@ pub mod types {
     }
 
     pub struct StateHalfpipeToDb {
-        pub inner: Mutex<mpsc::Sender<StatelessQuery>>,
+        pub inner: Mutex<mpsc::Sender<FullQuery>>,
     }
 
     impl StateHalfpipeToDb {
-        pub fn from(sender_to_db: mpsc::Sender<StatelessQuery>) -> StateHalfpipeToDb {
+        pub fn from(sender_to_db: mpsc::Sender<FullQuery>) -> StateHalfpipeToDb {
             StateHalfpipeToDb {
                 inner: Mutex::new(sender_to_db),
             }
@@ -172,7 +172,7 @@ pub mod types {
         }
     }
 
-    pub type DatabaseQueryReceiver = mpsc::Receiver<StatelessQuery>;
+    pub type DatabaseQueryReceiver = mpsc::Receiver<FullQuery>;
     pub type StringTableSender = mpsc::Sender<DatabaseQueryResult>;
 
     #[derive(Deserialize, Serialize, Clone)]
@@ -215,8 +215,8 @@ pub mod commands {
     /// Return a path and a name for the location to be used as "home"
     ///
     #[tauri::command]
-    pub async fn suggest_query() -> types::StatelessQuery {
-        types::StatelessQuery {
+    pub async fn suggest_query() -> types::FullQuery {
+        types::FullQuery {
             connection: types::Connection::Stateless(suggest_connection_str()),
             query: types::Query::GetDatabases, // Available:
                                                //
@@ -233,7 +233,7 @@ pub mod commands {
 
     #[tauri::command]
     pub async fn db_query(
-        query: types::StatelessQuery,
+        query: types::FullQuery,
         to_db: State<'_, types::StateHalfpipeToDb>,
         from_db: State<'_, types::StateHalfpipeToTauri>,
     ) -> Result<DatabaseQueryResult, String> {
