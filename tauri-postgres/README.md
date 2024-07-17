@@ -2,8 +2,7 @@
 
 Demonstrating:
 
-* Read from database in separate task
-* Pull results into table
+* Navigate postgres databases, tables and view table contents 
 
 See also:
 
