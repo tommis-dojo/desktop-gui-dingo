@@ -51,3 +51,21 @@ See also explicite [README.md](tauri-postgres/).
 
 Testbed for various tinkerings. Free for play!
 See explicite [README.md](tauri-collection/) of that bag of experiments.
+
+### Creating and running a tauri app via npm
+
+Create app:
+
+```
+npm create tauri-app@latest
+npm install
+npm run tauri dev
+```
+
+Creating a SBOM:
+
+```
+npm install --global @cyclonedx/cyclonedx-npm  # If not already installed
+cyclonedx-npm > my_app.cdx.xml
+```
+
